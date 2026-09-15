@@ -7,12 +7,13 @@
  * Router, navegacion y teclado. Toda la aplicacion se puede usar sin raton.
  */
 
-import { add, $, $$, h, isTyping, toast, iso } from './util.js';
+import { add, $, $$, h, isTyping, toast, iso, today as hoyISO } from './util.js';
 import * as S from './store.js';
 import * as focus from './focus.js';
 import * as search from './search.js';
 import * as viewkeys from './viewkeys.js';
-import { openCapture, closeTop, anyOpen, openSheet, sheet, openEditor, pickTask, askOneThing } from './components.js';
+import { openCapture, closeTop, anyOpen, openSheet, sheet, openEditor, pickTask, askOneThing, completeToggle } from './components.js';
+import * as V from './voice.js';
 
 import * as today from './views/today.js';
 import * as inbox from './views/inbox.js';
@@ -74,6 +75,15 @@ let currentNav = '#/hoy';
 let cursor = -1;
 
 function renderNav() {
+  const grit = $('#nav-grit');
+  if (grit) {
+    grit.textContent = V.gritNav({
+      carried: S.carried().length,
+      oneThing: S.oneThing(),
+      doneToday: S.completedToday().length,
+      overdue: S.overdueTasks().length,
+    });
+  }
   const box = $('#nav-list');
   box.textContent = '';
   for (const item of NAV) {
@@ -211,7 +221,7 @@ document.addEventListener('keydown', (e) => {
 
   if (e.key === ' ') {
     const t = cursorTask();
-    if (t) { e.preventDefault(); S.toggleComplete(t.id); }
+    if (t) { e.preventDefault(); completeToggle(t.id); }
     return;
   }
   if (e.key === 'Enter') {
@@ -252,8 +262,9 @@ const KEYS = [
   ['↑ ↓ · J K', 'Mover el cursor por la lista'],
   ['Espacio', 'Completar la tarea del cursor'],
   ['Enter', 'Abrir / confirmar'],
-  ['1 – 6', 'Aclarar la bandeja'],
-  ['← →', 'Mover la tarjeta de columna'],
+  ['M', 'Mover de columna la tarjeta con el foco'],
+  ['0 – 6', 'Aclarar la bandeja · decidir algún día'],
+  ['← →', 'Calendario: periodo anterior / siguiente'],
   ['Esc', 'Salir'],
 ];
 
@@ -377,6 +388,21 @@ async function main() {
 
   if (!location.hash) location.hash = '#/hoy';
   render();
+
+  // La app abierta de un día para otro: lo programado llega y HOY es hoy.
+  let dia = hoyISO();
+  const vigilarDia = async () => {
+    if (hoyISO() === dia) return;
+    dia = hoyISO();
+    await S.promoteDue();
+    render();
+  };
+  setInterval(vigilarDia, 60 * 1000);
+  addEventListener('focus', vigilarDia);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) vigilarDia(); });
+
+  // Un bloque de trabajo que seguía en marcha cuando se cerró o recargó la página.
+  focus.resume();
 
   if (S.state.restoredFromDisk) toast('Datos restaurados desde la copia en disco.');
   else if (S.state.wokenProjects && S.state.wokenProjects.length) {

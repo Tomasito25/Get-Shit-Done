@@ -21,7 +21,7 @@ function download(filename, text, type) {
 
 export function render() {
   const wrap = h('div', { class: 'wrap' });
-  add(wrap, pageHead('DATOS', 'Todo se guarda en este equipo.'));
+  add(wrap, pageHead('DATOS', 'Todo se guarda en este equipo.', 'YOUR WORK. YOUR MACHINE. NO EXCUSES ABOUT LOST DATA.'));
 
   /* ------------------------------- Respaldo ----------------------------- */
 

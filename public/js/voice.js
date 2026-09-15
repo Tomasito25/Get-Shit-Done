@@ -135,3 +135,116 @@ export function difficulty(t) {
 export const emptyToday = () => 'Nada comprometido. Un día sin decisión es un día perdido.';
 export const emptyBoard = () => 'Tablero vacío. Captura algo y decide qué es.';
 export const emptyCalendar = () => 'Sin nada programado.';
+
+/* --------------------------------- GOGGINS -------------------------------- */
+
+/*
+ * Una línea en inglés por pantalla, corta y sacada del estado real: lo que
+ * arrastras, lo que evitas, lo que acumulas. Nunca al azar y nunca un póster
+ * motivacional: si no hay nada que decir, se dice lo mínimo.
+ *
+ * Y siempre la misma idea debajo: si cuesta, es que estás aprendiendo.
+ */
+
+const hora = () => new Date().getHours();
+
+export function gritToday({ carried = 0, oneThing = null, doneToday = 0, deepToday = 0, commitments = 0, inbox = 0 }) {
+  if (carried >= 3) return 'YOU OWE THIS. PAY THE DEBT BEFORE ANYTHING NEW.';
+  if (carried > 0) return "YESTERDAY'S PROMISE IS TODAY'S DEBT.";
+  if (!oneThing) return 'NO TARGET, NO FIGHT. PICK ONE.';
+  if (doneToday === 0 && hora() >= 14) return 'HALF THE DAY IS GONE. NOBODY IS COMING TO DO IT FOR YOU.';
+  if (deepToday === 0 && hora() >= 11 && hora() < 20) return 'COMFORT IS THE ENEMY. GO DEEP.';
+  if (commitments > 0 && doneToday >= commitments) return 'DONE WHEN IT IS DONE. NOT WHEN YOU ARE TIRED.';
+  if (inbox > 10) return 'UNDECIDED IS UNDONE.';
+  return 'STAY HARD.';
+}
+
+export function gritNav({ carried = 0, oneThing = null, doneToday = 0, overdue = 0 }) {
+  if (carried > 0) return `${carried} OWED`;
+  if (overdue > 0) return 'DATES MISSED';
+  if (!oneThing) return 'PICK ONE';
+  if (doneToday > 0) return `${doneToday} DONE · STAY HARD`;
+  return 'STAY HARD';
+}
+
+export function gritBoard({ inbox = 0, next = 0, waiting = 0, someday = 0, done = 0, over = false }) {
+  if (over) return 'TOO MUCH OPEN. CLOSE SOMETHING BEFORE YOU OPEN ANYTHING.';
+  if (inbox > next && inbox > 2) return 'UNDECIDED IS UNDONE.';
+  if (next > 25) return 'A LONG LIST IS A HIDING PLACE.';
+  if (waiting > next && waiting > 2) return "YOU'RE WAITING MORE THAN YOU'RE WORKING.";
+  if (someday > next * 3 && someday > 6) return 'PARKING IS NOT DOING.';
+  if (done === 0 && next > 0) return 'NOTHING FINISHED THIS WEEK. MOVE ONE CARD TO DONE.';
+  return 'EVERY CARD IS A DECISION. MAKE IT.';
+}
+
+export function gritNext({ total = 0, stale = 0, noContext = 0 }) {
+  if (total === 0) return 'NO NEXT ACTION, NO PROGRESS.';
+  if (stale >= 5) return 'OLD ACTIONS ROT. DO THEM OR KILL THEM.';
+  if (total > 30) return "YOU DON'T NEED MORE OPTIONS. YOU NEED TO START.";
+  if (noContext > total / 2) return "IF YOU DON'T KNOW WHERE, YOU WON'T KNOW WHEN.";
+  return 'PICK ONE. FINISH IT. REPEAT.';
+}
+
+export function gritSomeday({ total = 0, old = 0 }) {
+  if (total === 0) return 'NOTHING PARKED. IT IS NOW OR NEVER.';
+  if (old >= 5) return "IF IT'S BEEN MONTHS, IT'S A NO. SAY IT.";
+  if (total > 25) return 'SOMEDAY IS NOT A DAY OF THE WEEK.';
+  return 'PARKED, NOT FORGOTTEN. DECIDE, DON’T HOARD.';
+}
+
+export function gritCalendar({ overdue = 0, overloaded = 0, empty = false }) {
+  if (overdue > 0) return 'A DATE YOU MISSED IS A PROMISE YOU BROKE.';
+  if (overloaded > 0) return "YOU CAN'T FIT A WEEK INTO ONE DAY.";
+  if (empty) return 'AN EMPTY WEEK FILLS ITSELF WITH EXCUSES.';
+  return "PUT IT ON THE CALENDAR OR ADMIT IT WON'T HAPPEN.";
+}
+
+export function gritProjects({ stalled = 0, paused = 0, total = 0 }) {
+  if (stalled > 0) return 'A PROJECT WITHOUT A NEXT ACTION IS A WISH.';
+  if (paused > total && paused > 2) return 'PAUSED IS A DECISION. FORGOTTEN IS NOT.';
+  return 'OUTCOMES, NOT INTENTIONS.';
+}
+
+export function gritWaiting(vencidas = 0) {
+  return vencidas > 0 ? 'CHASE IT. NOBODY CARES ABOUT YOUR DEADLINE BUT YOU.' : 'DELEGATED IS STILL YOURS.';
+}
+
+export const gritNotes = () => 'INFORMATION IS NOT ACTION.';
+
+export const gritClarify = (n) => (n > 10 ? 'DECIDE FAST. ORGANIZE NEVER.' : 'WHAT IS IT? DECIDE. MOVE ON.');
+
+export function gritReview(rate) {
+  if (rate === null) return 'NO PROMISES, NO PROOF.';
+  if (rate < 50) return 'YOUR WORD IS THE ONLY CURRENCY YOU HAVE. STOP SPENDING IT FOR FREE.';
+  if (rate < 80) return 'GOOD IS THE ENEMY. RAISE THE FLOOR.';
+  return 'YOU KEPT YOUR WORD. NOW DO IT AGAIN.';
+}
+
+export const gritConfig = () => 'RAISING THE LIMIT IS EASIER THAN MEETING IT.';
+
+/** Al cerrar una tarea. Lo que costó se nombra; lo fácil, no se celebra. */
+export function doneLine(t, hechasHoy = 0) {
+  const veces = (t && t.postponeCount) || 0;
+  if (t && t.isOneThing) return 'THE ONE THING. DONE.';
+  if (veces >= 3) return 'THE ONE YOU RAN FROM. DONE.';
+  if (veces >= 1) return 'AVOIDED IT. FINISHED IT ANYWAY.';
+  if (hechasHoy === 1) return 'FIRST ONE DOWN.';
+  if (hechasHoy >= 5) return 'KEEP THE MOMENTUM. DON’T COAST.';
+  return 'DONE. NEXT.';
+}
+
+/** Al intentar mover una fecha. Cuanto más se ha movido, menos se escucha. */
+export function postponeLine(t) {
+  const veces = (t && t.postponeCount) || 0;
+  if (veces >= 3) return 'YOU HAVE NEGOTIATED THIS BEFORE. YOU LOST EVERY TIME.';
+  if (veces >= 1) return 'MOVING IT AGAIN DOESN’T MAKE IT SMALLER.';
+  if (t && (t.isCommitment || t.isOneThing)) return 'YOU ALREADY DECIDED.';
+  return 'LATER IS WHERE THINGS GO TO DIE.';
+}
+
+/** La antigüedad de una tarjeta, en voz alta cuando ya pesa. */
+export function ageLine(dias) {
+  if (dias >= 60) return 'ROTTING';
+  if (dias >= 21) return 'STALE';
+  return '';
+}

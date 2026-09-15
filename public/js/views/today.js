@@ -19,7 +19,7 @@ import * as focus from '../focus.js';
 import * as inbox from './inbox.js';
 import {
   pageHead, section, foldSection, taskList, pickTask, openEditor, openPostpone, captureBar,
-  askOneThing, askCommit, askDelete, openDelegate, confirmSheet, deadlineTag,
+  askOneThing, askCommit, askDelete, openDelegate, confirmSheet, deadlineTag, completeToggle,
 } from '../components.js';
 
 export function render() {
@@ -50,6 +50,14 @@ export function render() {
       commitments: compromisos,
       cap: S.commitCap(),
       doneToday: hechasHoy.length,
+      inbox: bandeja.length,
+    }),
+    V.gritToday({
+      carried: arrastradas.length,
+      oneThing: one,
+      doneToday: hechasHoy.length,
+      deepToday: profundos,
+      commitments: compromisos,
       inbox: bandeja.length,
     })));
 
@@ -105,7 +113,7 @@ export function render() {
       body: h('div', { class: 'rows' }, venciendo.slice(0, 5).map((t) => h('div', { class: 'row' },
         h('button', {
           class: 'row-check', type: 'button', title: 'Completar',
-          onclick: (e) => { e.stopPropagation(); S.toggleComplete(t.id); },
+          onclick: (e) => { e.stopPropagation(); completeToggle(t.id); },
         }),
         h('div', { class: 'row-body' },
           h('button', { class: 'row-title', style: 'text-align:left', type: 'button', text: t.title, onclick: () => openEditor(t.id) }),
@@ -128,7 +136,7 @@ export function render() {
       body: h('div', {},
         taskList(bandeja.slice(0, 5), {
           acts: (t) => [
-            { label: 'ACLARAR', fn: () => inbox.startProcessing() },
+            { label: 'ACLARAR', fn: () => inbox.startProcessing(t.id) },
             { label: 'EDITAR', fn: () => openEditor(t.id) },
             { label: 'ELIMINAR', warn: true, fn: () => askDelete(t.id) },
           ],
@@ -245,7 +253,7 @@ function ahora({ tarea, razon, esUnico, deuda }, { deuda: arrastradas, resto }) 
     h('div', { class: 'unico-actions' },
       h('button', { class: 'btn btn-primary btn-big', type: 'button', text: 'EMPEZAR AHORA', onclick: () => focus.open(t.id) }),
       h('button', { class: 'btn btn-on-dark', type: 'button', text: 'TRABAJO PROFUNDO', onclick: () => focus.openDeep(t.id) }),
-      h('button', { class: 'btn btn-on-dark', type: 'button', text: 'HECHA', onclick: () => S.complete(t.id) })),
+      h('button', { class: 'btn btn-on-dark', type: 'button', text: 'HECHA', onclick: () => completeToggle(t.id) })),
     h('div', { class: 'unico-minor' },
       esUnico
         ? h('button', { class: 'unico-link', type: 'button', text: 'CAMBIAR LO ÚNICO', onclick: chooseOneThing })
@@ -307,7 +315,7 @@ function cola(items, { hayFoco }) {
     const fila = h('div', { class: 'row row-q', dataset: { taskId: t.id } },
       h('button', {
         class: 'row-check', type: 'button', title: 'Completar (espacio)',
-        onclick: (e) => { e.stopPropagation(); S.toggleComplete(t.id); },
+        onclick: (e) => { e.stopPropagation(); completeToggle(t.id); },
       }),
       h('span', { class: 'q-num', text: String(i + 1) }),
       h('div', { class: 'row-body' },
@@ -394,7 +402,7 @@ function enEspera(waiting) {
           : null),
       tarde
         ? h('div', { class: 'row-acts', style: 'opacity:1' },
-          h('button', { class: 'row-act', type: 'button', text: 'RECIBIDO', onclick: () => S.complete(t.id) }),
+          h('button', { class: 'row-act', type: 'button', text: 'RECIBIDO', onclick: () => completeToggle(t.id) }),
           h('button', { class: 'row-act', type: 'button', text: 'SEGUIMIENTO', onclick: () => openDelegate(t.id) }))
         : null);
   });

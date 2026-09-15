@@ -23,8 +23,9 @@ let processing = false;
 let pinnedId = null;
 
 /** Entrar directo al aclarado desde cualquier sitio, sin pasar por la lista. */
-export function startProcessing() {
+export function startProcessing(id = null) {
   processing = true;
+  pinnedId = id;
   if (location.hash !== '#/inbox') location.hash = '#/inbox';
   else dispatchEvent(new CustomEvent('gsd:rerender'));
 }
@@ -40,7 +41,7 @@ export function render() {
   processing = false;
   viewkeys.clear();
 
-  add(wrap, pageHead('BANDEJA', V.inboxLine(items.length)));
+  add(wrap, pageHead('BANDEJA', V.inboxLine(items.length), items.length ? V.gritClarify(items.length) : 'CLEAR MIND. NOW EXECUTE.'));
 
   if (!items.length) {
     add(wrap,
@@ -183,7 +184,7 @@ function clarify(items) {
   const avance = Math.round(((total - items.length) / Math.max(1, total)) * 100);
 
   return h('div', {},
-    pageHead('ACLARAR', `${index} de ${items.length} · ¿Qué es esto?`),
+    pageHead('ACLARAR', `${index} de ${items.length} · ¿Qué es esto?`, V.gritClarify(items.length)),
     h('div', { class: 'progress' }, h('span', { style: `width:${avance}%` })),
     h('div', { class: 'field' },
       h('label', { class: 'label', text: 'Reescríbelo como una acción física y concreta' }),

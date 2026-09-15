@@ -6,15 +6,16 @@
  * cada opcion de aqui cambia como te comporta la aplicacion, no como se ve.
  */
 
-import { add, h, toast, plural } from '../util.js';
+import { add, h, toast, plural, today, addDays } from '../util.js';
 import * as S from '../store.js';
 import { pageHead, section, openSheet, closeTop, sheet, confirmSheet } from '../components.js';
-import { openColumnEditor } from './board.js';
+import { openColumnEditor, taskCard } from './board.js';
+import * as V from '../voice.js';
 import { openFolderSheet } from './projects.js';
 
 export function render() {
   const wrap = h('div', { class: 'wrap' });
-  add(wrap, pageHead('CONFIGURACIÓN', 'Poco que tocar, y todo cambia cómo te exige.'));
+  add(wrap, pageHead('CONFIGURACIÓN', 'Poco que tocar, y todo cambia cómo te exige.', V.gritConfig()));
 
   /* -------------------------------- Contextos ---------------------------- */
 
@@ -162,12 +163,25 @@ export function render() {
     micro: 'SUBIRLOS ES MÁS FÁCIL QUE CUMPLIRLOS. PIÉNSALO.',
   }));
 
+  /* -------------------------------- Tarjetas ----------------------------- */
+
+  add(wrap, seccionTarjetas());
+
   /* -------------------------------- Tablero ------------------------------ */
 
+  const grupo = (S.state.settings && S.state.settings.boardGroup) || 'none';
   add(wrap, section('TABLERO', {
-    body: h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;align-items:center' },
-      h('button', { class: 'btn', type: 'button', text: 'EDITAR COLUMNAS', onclick: openColumnEditor }),
-      h('span', { class: 'micro', text: S.visibleColumns().map((c) => c.label).join('  ·  ') })),
+    body: h('div', {},
+      h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;align-items:center' },
+        h('button', { class: 'btn', type: 'button', text: 'EDITAR COLUMNAS', onclick: openColumnEditor }),
+        h('span', { class: 'micro', text: S.visibleColumns().map((c) => c.label).join('  ·  ') })),
+      h('div', { class: 'filters', style: 'margin-top:14px' },
+        h('span', { class: 'filters-l', text: 'AGRUPAR TARJETAS' }),
+        [['none', 'SIN AGRUPAR'], ['project', 'POR PROYECTO'], ['context', 'POR CONTEXTO']].map(([k, l]) => h('button', {
+          class: `chip${grupo === k ? ' on' : ''}`, type: 'button', text: l,
+          onclick: () => S.saveSettings({ boardGroup: k }),
+        })))),
+    micro: 'SIN AGRUPAR, LA COLUMNA SIGUIENTE SEPARA LO QUE ES PARA HOY DE LO QUE ESPERA TURNO.',
   }));
 
   /* -------------------------------- Aspecto ------------------------------ */
@@ -203,4 +217,60 @@ export function render() {
   }));
 
   return wrap;
+}
+
+/* ------------------------------- Tarjetas --------------------------------- */
+
+/**
+ * Cómo se ven las tarjetas del tablero. La vista previa usa una tarea de
+ * mentira: se ve el cambio al instante sin tocar ninguna tarea real.
+ */
+function seccionTarjetas() {
+  const pref = S.cardPrefs();
+  const proyecto = S.activeProjects()[0] || null;
+  const muestra = S.newTask('Llamar a la imprenta para cerrar el presupuesto', {
+    id: 'muestra-tarjeta',
+    status: S.STATUS.NEXT,
+    projectId: proyecto ? proyecto.id : null,
+    context: '@teléfono',
+    dueDate: today(),
+    deadline: addDays(today(), 2),
+    reminder: `${addDays(today(), 1)}T09:00`,
+    recurrence: { kind: 'weekdays', days: [1, 4] },
+    notes: 'Pedir dos opciones: papel reciclado y estucado.',
+    isCommitment: true,
+    postponeCount: S.postponeAlert(),
+    createdAt: new Date(Date.now() - 25 * 86400000).toISOString(),
+  });
+
+  const chip = (texto, activo, fn) => h('button', { class: `chip${activo ? ' on' : ''}`, type: 'button', text: texto, onclick: fn });
+
+  const campos = h('div', { class: 'cardcfg-fields' }, S.CARD_FIELDS.map((f) => {
+    const c = h('input', { type: 'checkbox' });
+    c.checked = !!pref.show[f.key];
+    c.addEventListener('change', () => S.saveCardPrefs({ show: { [f.key]: c.checked } }));
+    return h('label', { class: 'check' }, c,
+      h('span', { class: 'check-text' }, f.label, h('span', { class: 'check-note', text: f.hint })));
+  }));
+
+  return section('TARJETAS', {
+    body: h('div', { class: 'cardcfg' },
+      h('div', { class: 'cardcfg-controls' },
+        h('div', { class: 'filters' },
+          h('span', { class: 'filters-l', text: 'TAMAÑO' }),
+          chip('NORMAL', pref.density === 'normal', () => S.saveCardPrefs({ density: 'normal' })),
+          chip('COMPACTA', pref.density === 'compact', () => S.saveCardPrefs({ density: 'compact' }))),
+        h('div', { class: 'filters' },
+          h('span', { class: 'filters-l', text: 'BOTONES' }),
+          chip('AL PASAR EL RATÓN', pref.actions === 'hover', () => S.saveCardPrefs({ actions: 'hover' })),
+          chip('SIEMPRE VISIBLES', pref.actions === 'always', () => S.saveCardPrefs({ actions: 'always' }))),
+        h('div', { class: 'label', style: 'margin-top:14px', text: 'Qué enseñan' }),
+        campos,
+        h('button', { class: 'btn btn-sm btn-ghost', type: 'button', text: 'VALORES DE FÁBRICA', onclick: () => S.resetCardPrefs() })),
+      h('div', { class: 'cardcfg-preview' },
+        h('div', { class: 'label', text: 'Así se ve' }),
+        h('div', { class: 'cardcfg-stage' }, taskCard(muestra, { showProject: true, preview: true })),
+        h('div', { class: 'check-note', style: 'margin-top:8px', text: 'Lo único, compromiso y fecha tope se marcan siempre en el borde: eso no se esconde.' }))),
+    micro: 'UNA TARJETA QUE LO DICE TODO NO DICE NADA.',
+  });
 }

@@ -2,8 +2,10 @@
 
 import { add, h, holdToConfirm, toast, focusSoon, relDate, fmtDate, fmtLong, today, tomorrow, addDays, iso, parseISO } from './util.js';
 import * as S from './store.js';
+import * as V from './voice.js';
 import { parseCapture, describe, parseRecurrence, parseDate } from './parse.js';
 import { withAssist } from './assist.js';
+import * as focus from './focus.js';
 
 /* --------------------------------- Capas --------------------------------- */
 
@@ -80,7 +82,7 @@ function metaTags(t, opts = {}) {
     const p = S.projectById(t.projectId);
     if (p) out.push(h('span', { text: S.projectLabel(p) }));
   }
-  if (t.context) out.push(h('span', { text: t.context }));
+  if (t.context && opts.showContext !== false) out.push(h('span', { text: t.context }));
   if (t.dueDate && opts.showDate !== false) {
     const dias = S.carriedDays(t);
     if (t.isCommitment && dias > 0) {
@@ -103,6 +105,21 @@ function metaTags(t, opts = {}) {
       class: t.postponeCount >= S.postponeAlert() ? 'tag tag-warn' : '',
       text: `POSPUESTA ×${t.postponeCount}`,
     }));
+  }
+  if (opts.hoyIds && opts.hoyIds.has(t.id) && !t.isOneThing && !t.isCommitment) {
+    out.push(h('span', { class: 'tag tag-lock', text: 'EN HOY' }));
+  }
+  // La antigüedad se dice cuando empieza a pesar: una semana, y en rojo a las tres.
+  if (opts.age && !t.completed) {
+    const dias = S.taskAge(t);
+    const limite = opts.age === 'someday' ? 120 : 21;
+    if (dias >= 7) {
+      out.push(h('span', {
+        class: dias >= limite ? 'tag tag-warn' : 'tag-age',
+        text: dias >= limite && opts.age !== 'someday' ? `${V.ageLine(dias)} · ${dias}D` : `HACE ${dias}D`,
+        title: `Capturada hace ${dias} días`,
+      }));
+    }
   }
   return out;
 }
@@ -138,7 +155,7 @@ export function taskRow(t, opts = {}) {
       type: 'button',
       title: 'Completar (espacio)',
       'aria-label': 'Completar',
-      onclick: (e) => { e.stopPropagation(); S.toggleComplete(t.id); },
+      onclick: (e) => { e.stopPropagation(); completeToggle(t.id); },
     }),
     h('div', { class: 'row-body' },
       h('div', { class: 'row-title', text: t.title }),
@@ -180,6 +197,19 @@ export function taskList(tasks, opts = {}) {
 }
 
 /* -------------------------------- Acciones ------------------------------- */
+
+/**
+ * Completar desde cualquier sitio. Un clic de más no puede costar una tarea:
+ * siempre se puede deshacer, y lo que cuesta cerrar se nombra al cerrarlo.
+ */
+export async function completeToggle(id) {
+  const t = S.byId(id);
+  if (!t) return;
+  if (t.completed) { await S.uncomplete(id); return; }
+  const antes = { ...t };
+  await S.complete(id);
+  toast(`Hecha — ${V.doneLine(antes, S.completedToday().length)}`, () => S.undoComplete(id), 5000);
+}
 
 export async function askDelete(id) {
   const t = S.byId(id);
@@ -232,16 +262,22 @@ export async function askCommit(id) {
  * Posponer. Libre para lo ordinario; con friccion para lo comprometido.
  * No se trata de bloquear al usuario, sino de no abaratar la renegociacion.
  */
-export function openPostpone(id) {
+export function openPostpone(id, { fecha = null } = {}) {
   const t = S.byId(id);
   if (!t) return;
   const locked = t.isCommitment || t.isOneThing;
   const ms = S.holdMs(t);
   const dias = S.carriedDays(t);
 
-  const dateInput = h('input', { class: 'input', type: 'date', value: t.dueDate || tomorrow() });
+  const dateInput = h('input', { class: 'input', type: 'date', value: fecha || t.dueDate || tomorrow() });
 
-  const run = async (when) => { await S.postpone(id, when); closeTop(); toast('Pospuesta. Queda registrado.'); };
+  const run = async (when) => {
+    const destino = when === 'tomorrow' ? addDays(today(), 1) : when;
+    const adelanta = when !== 'someday' && destino <= (t.dueDate || today());
+    await S.postpone(id, when);
+    closeTop();
+    toast(adelanta ? 'Adelantada. Eso no cuenta como aplazamiento.' : 'Pospuesta. Queda registrado.');
+  };
 
   const mk = (label, when) => {
     const b = h('button', { class: 'btn', type: 'button', text: locked ? `${label} — MANTENER` : label });
@@ -259,7 +295,9 @@ export function openPostpone(id) {
           : null,
         dias > 0 ? h('span', { class: 'tag tag-warn', text: `ARRASTRADA ${dias}D` }) : null)
       : null,
-    locked ? h('div', { class: 'onething-ask', style: 'font-size:16px;margin:16px 0 4px', text: 'You already decided.' }) : null,
+    locked || (t.postponeCount || 0) >= 1
+      ? h('div', { class: 'onething-ask', style: 'font-size:16px;margin:16px 0 4px', text: V.postponeLine(t) })
+      : null,
     h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;margin-top:18px' },
       mk('HOY', today()),
       mk('MAÑANA', 'tomorrow'),
@@ -273,6 +311,8 @@ export function openPostpone(id) {
   const fire = () => { if (dateInput.value) run(dateInput.value); };
   if (locked) holdToConfirm(goDate, fire, ms);
   else goDate.addEventListener('click', fire);
+
+  if (fecha) requestAnimationFrame(() => goDate.focus());
 
   openSheet(sheet({
     title: locked ? 'Posponer un compromiso' : 'Posponer',
@@ -318,12 +358,15 @@ export function openDelegate(id, { after = null } = {}) {
 /* --------------------------------- Editor -------------------------------- */
 
 /**
- * Editor de tarea. No hay boton de guardar: cada cambio se guarda solo.
+ * La ficha de una tarjeta. No hay botón de guardar: cada cambio se guarda solo.
  *
- * Un boton de guardar es una trampa — se cierra con ESC y se pierde lo escrito.
- * Aqui el texto se guarda al dejar de escribir y todo lo demas al instante.
- * La unica excepcion es retirar un compromiso: eso no es editar, es romperlo,
+ * Un botón de guardar es una trampa —se cierra con ESC y se pierde lo escrito—.
+ * Aquí el texto se guarda al dejar de escribir y todo lo demás al instante.
+ * La única excepción es retirar un compromiso: eso no es editar, es romperlo,
  * y sigue costando lo mismo que posponerlo.
+ *
+ * Orden de la ficha: en qué estado está, qué hacer con ella ya, y después los
+ * detalles agrupados por la pregunta que responden: qué, dónde, cuándo.
  */
 export function openEditor(id) {
   const t = S.byId(id);
@@ -357,7 +400,7 @@ export function openEditor(id) {
 
   /* ------------------------------- Campos -------------------------------- */
 
-  const title = h('textarea', { class: 'textarea', style: 'min-height:52px', 'data-autofocus': '' });
+  const title = h('textarea', { class: 'textarea ed-title', style: 'min-height:52px', 'data-autofocus': 'end' });
   title.value = t.title;
   const tituloGuarda = guardarTexto(() => {
     const limpio = title.value.trim();
@@ -369,7 +412,7 @@ export function openEditor(id) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); title.blur(); }
   });
 
-  const notes = h('textarea', { class: 'textarea', placeholder: 'Notas' });
+  const notes = h('textarea', { class: 'textarea', placeholder: 'Lo que necesitas saber para hacerla: enlaces, pasos, datos.' });
   notes.value = t.notes || '';
   const notasGuarda = guardarTexto(() => {
     if (notes.value !== (S.byId(id) || {}).notes) guardar({ notes: notes.value });
@@ -442,6 +485,11 @@ export function openEditor(id) {
   rep.addEventListener('input', () => { pintarRep(); repGuarda.input(); });
   rep.addEventListener('blur', repGuarda.blur);
   pintarRep();
+  const repChips = h('div', { class: 'date-chips' },
+    [['DIARIO', 'diario'], ['LUN–VIE', 'lun,mar,mie,jue,vie'], ['SEMANAL', '7d'], ['DÍA 1 DEL MES', 'mes-1'], ['QUITAR', '']].map(([l, v]) => h('button', {
+      class: 'date-chip', type: 'button', text: l, dataset: { valor: v },
+      onclick: () => { rep.value = v; pintarRep(); repGuarda.blur(); },
+    })));
 
   /* ---------------------------- Compromisos ------------------------------ */
 
@@ -456,7 +504,8 @@ export function openEditor(id) {
         title: 'Retirar el compromiso',
         body: h('div', {},
           h('div', { class: 'hard-line', text: actual.title }),
-          h('div', { class: 'onething-ask', style: 'font-size:16px;margin-top:16px', text: 'Dijiste que esto no se negociaba.' })),
+          h('div', { class: 'onething-ask', style: 'font-size:16px;margin-top:16px', text: 'Dijiste que esto no se negociaba.' }),
+          h('div', { class: 'micro', style: 'margin-top:10px', text: V.postponeLine(actual) })),
         confirmText: 'RETIRARLO',
         warn: true,
         hold: true,
@@ -481,68 +530,147 @@ export function openEditor(id) {
       }
       await S.setOneThing(id);
       commit.checked = true;
-      if (!due.value) due.value = today();
+      due.value = today();
     } else {
       await S.clearOneThing();
     }
     marcarGuardado();
   });
 
+  /* ------------------------------- Estado -------------------------------- */
+
+  const guardarPendiente = () => { tituloGuarda.blur(); notasGuarda.blur(); repGuarda.blur(); };
+  const reabrir = () => { closeTop(); openEditor(id); };
+
+  const estadoActual = t.completed ? 'done' : (t.status === S.STATUS.SCHEDULED ? S.STATUS.NEXT : t.status);
+  const ESTADOS = [
+    [S.STATUS.INBOX, 'BANDEJA', 'sin decidir'],
+    [S.STATUS.NEXT, 'SIGUIENTE', 'se hace'],
+    [S.STATUS.WAITING, 'EN ESPERA', 'de otro'],
+    [S.STATUS.SOMEDAY, 'ALGÚN DÍA', 'aparcada'],
+    ['done', 'HECHA', 'cerrada'],
+  ];
+  const cambiarEstado = async (clave) => {
+    if (clave === estadoActual) return;
+    guardarPendiente();
+    if (clave === S.STATUS.WAITING) { closeTop(); openDelegate(id); return; }
+    if (clave === 'done') { closeTop(); await completeToggle(id); return; }
+    if (estadoActual === 'done') await S.uncomplete(id);
+    if (clave === S.STATUS.SOMEDAY) await S.makeSomeday(id);
+    else await S.moveTo(id, clave);
+    reabrir();
+  };
+  const estados = h('div', { class: 'ed-states', role: 'group', 'aria-label': 'Estado' },
+    ESTADOS.map(([k, l, pista]) => h('button', {
+      class: `ed-state${k === estadoActual ? ' on' : ''}`, type: 'button', title: pista,
+      onclick: () => cambiarEstado(k),
+    }, h('span', { text: l }), h('small', { text: pista }))));
+
+  const boton = (texto, fn, extra = '') => h('button', { class: `btn btn-sm${extra}`, type: 'button', text: texto, onclick: fn });
+  const rapidas = h('div', { class: 'ed-quick' },
+    !t.completed ? boton('EMPEZAR', () => { guardarPendiente(); closeTop(); focus.open(id); }, ' btn-primary') : null,
+    !t.completed ? boton('TRABAJO PROFUNDO', () => { guardarPendiente(); closeTop(); focus.openDeep(id); }) : null,
+    !t.completed && !t.isCommitment && t.status !== S.STATUS.WAITING
+      ? boton('PARA HOY', async () => { guardarPendiente(); await askCommit(id); if (S.byId(id).isCommitment) reabrir(); })
+      : null,
+    !t.completed && t.status !== S.STATUS.SOMEDAY ? boton('POSPONER', () => { guardarPendiente(); closeTop(); openPostpone(id); }) : null,
+    boton('DUPLICAR', async () => {
+      guardarPendiente();
+      const copia = await S.duplicateTask(id);
+      closeTop();
+      if (copia) { toast('Duplicada. Estás en la copia.'); openEditor(copia.id); }
+    }),
+    boton('ES UNA ANOTACIÓN', async () => {
+      guardarPendiente();
+      await S.makeReference(id);
+      closeTop();
+      toast('Guardada como anotación.');
+    }),
+    h('div', { class: 'spacer' }),
+    boton('ELIMINAR', () => { closeTop(); askDelete(id); }, ' btn-warn'));
+
+  /* ------------------------------ Historia ------------------------------- */
+
+  const edad = S.taskAge(t);
+  const historia = [];
+  historia.push(`Capturada ${edad === 0 ? 'hoy' : edad === 1 ? 'ayer' : `hace ${edad} días`}`);
+  if (t.completed && t.completedAt) historia.push(`hecha el ${fmtDate(iso(new Date(t.completedAt)))}`);
+  if (t.postponeCount) historia.push(`pospuesta ×${t.postponeCount}`);
+  if (S.carriedDays(t) > 0 && t.isCommitment) historia.push(`arrastrada ${S.carriedDays(t)} días`);
+  if (S.isPausedTask(t)) historia.push('su proyecto está en pausa');
+  const grita = V.ageLine(edad);
+
+  const espera = t.status === S.STATUS.WAITING ? S.waitingByTask(id) : null;
+
   /* -------------------------------- Cuerpo ------------------------------- */
 
-  const body = h('div', {},
-    h('div', { class: 'field' }, h('label', { class: 'label', text: 'Siguiente acción física y concreta' }), title),
+  const bloque = (titulo, ...hijos) => h('section', { class: 'ed-block' },
+    h('div', { class: 'ed-block-title', text: titulo }), ...hijos);
+
+  const body = h('div', { class: 'editor' },
+    estados,
+    rapidas,
+    t.status === S.STATUS.WAITING
+      ? h('div', { class: 'notice', style: 'margin:14px 0 0' },
+        h('div', { class: 'notice-title', text: `ESPERANDO A ${(t.waitingFor || '—').toUpperCase()}` }),
+        h('div', { class: 'notice-body', text: espera && espera.reviewDate ? `Revisar ${relDate(espera.reviewDate).toLowerCase()} · ${espera.description}` : 'Sin fecha para preguntar. Pónsela.' }),
+        h('div', { class: 'notice-acts' },
+          h('button', { class: 'btn btn-sm', type: 'button', text: 'SEGUIMIENTO', onclick: () => { closeTop(); openDelegate(id); } }),
+          h('button', { class: 'btn btn-sm', type: 'button', text: 'RECUPERAR', onclick: async () => { await S.undelegate(id); reabrir(); } })))
+      : null,
+    bloque('QUÉ',
+      h('label', { class: 'label', text: 'Siguiente acción física y concreta' }), title),
     h('div', { class: 'row2' },
-      h('div', { class: 'field' }, h('label', { class: 'label', text: 'Proyecto' }), project),
-      h('div', { class: 'field' }, h('label', { class: 'label', text: 'Contexto' }), ctx)),
-    h('div', { class: 'row2' },
-      h('div', { class: 'field' },
-        h('label', { class: 'label', text: 'Cuándo lo haces' }), due,
-        dateChips(due, [
-          { label: 'HOY', valor: today() },
-          { label: 'MAÑANA', valor: addDays(today(), 1) },
-          { label: '+2D', valor: addDays(today(), 2) },
-          { label: '+3D', valor: addDays(today(), 3) },
-          { label: '+1 SEM', valor: addDays(today(), 7) },
-          { label: 'LUNES', valor: parseDate('lun') },
-          { label: 'QUITAR', valor: '' },
-        ]),
-        h('div', { class: 'check-note', style: 'margin-top:5px', text: 'El día que piensas ponerte.' })),
-      h('div', { class: 'field' },
-        h('label', { class: 'label', text: 'Fecha tope' }), tope,
-        dateChips(tope, [
-          { label: 'MAÑANA', valor: addDays(today(), 1) },
-          { label: '+2D', valor: addDays(today(), 2) },
-          { label: '+3D', valor: addDays(today(), 3) },
-          { label: '+1 SEM', valor: addDays(today(), 7) },
-          { label: '+2 SEM', valor: addDays(today(), 14) },
-          { label: 'FIN DE MES', valor: finDeMes() },
-          { label: 'QUITAR', valor: '' },
-        ]),
-        h('div', { class: 'check-note', style: 'margin-top:5px', text: 'El día en que deja de servir hacerlo.' }))),
-    h('div', { class: 'field' },
-      h('label', { class: 'label', text: 'Aviso' }), avisoCampo,
-      avisoChips(avisoCampo, () => due.value, () => tope.value),
-      h('div', { class: 'check-note', style: 'margin-top:5px', text: 'Llega como notificación del escritorio, aunque el navegador esté cerrado, mientras GSD esté en marcha.' })),
-    h('div', { class: 'field' }, h('label', { class: 'label', text: 'Se repite' }), rep, repEco),
-    h('div', { class: 'field' }, h('label', { class: 'label', text: 'Notas' }), notes),
-    h('label', { class: 'check' }, commit,
-      h('span', { class: 'check-text' }, 'No negociar',
-        h('span', { class: 'check-note', text: 'Compromiso del día. Retirarlo exigirá mantener pulsado.' }))),
-    h('label', { class: 'check' }, one,
-      h('span', { class: 'check-text' }, 'Lo único',
-        h('span', { class: 'check-note', text: 'Solo puede haber una activa. Sustituye a la actual.' }))),
-    h('div', { class: 'editor-more' },
-      h('button', { class: 'btn btn-sm', type: 'button', text: 'DELEGAR', onclick: () => { closeTop(); openDelegate(id); } }),
-      h('button', { class: 'btn btn-sm', type: 'button', text: 'ALGÚN DÍA', onclick: async () => { await S.makeSomeday(id); closeTop(); } }),
-      h('button', { class: 'btn btn-sm', type: 'button', text: 'ES UNA ANOTACIÓN', title: 'Información, no trabajo', onclick: async () => { await S.makeReference(id); closeTop(); toast('Guardada como anotación.'); } }),
-      t.status === S.STATUS.WAITING
-        ? h('button', { class: 'btn btn-sm', type: 'button', text: 'RECUPERAR', onclick: async () => { await S.undelegate(id); closeTop(); } })
-        : null,
-      h('button', { class: 'btn btn-sm btn-warn', type: 'button', text: 'ELIMINAR', onclick: () => { closeTop(); askDelete(id); } })));
+      bloque('DÓNDE',
+        h('div', { class: 'field' }, h('label', { class: 'label', text: 'Proyecto' }), project),
+        h('div', { class: 'field' }, h('label', { class: 'label', text: 'Contexto' }), ctx)),
+      bloque('COMPROMISO',
+        h('label', { class: 'check' }, commit,
+          h('span', { class: 'check-text' }, 'No negociar',
+            h('span', { class: 'check-note', text: 'Compromiso del día. Retirarlo exige mantener pulsado.' }))),
+        h('label', { class: 'check' }, one,
+          h('span', { class: 'check-text' }, 'Lo único',
+            h('span', { class: 'check-note', text: 'Solo puede haber una. Sustituye a la actual.' }))))),
+    bloque('CUÁNDO',
+      h('div', { class: 'row2' },
+        h('div', { class: 'field' },
+          h('label', { class: 'label', text: 'Cuándo lo haces' }), due,
+          dateChips(due, [
+            { label: 'HOY', valor: today() },
+            { label: 'MAÑANA', valor: addDays(today(), 1) },
+            { label: '+2D', valor: addDays(today(), 2) },
+            { label: '+3D', valor: addDays(today(), 3) },
+            { label: '+1 SEM', valor: addDays(today(), 7) },
+            { label: 'LUNES', valor: parseDate('lun') },
+            { label: 'QUITAR', valor: '' },
+          ]),
+          h('div', { class: 'check-note', style: 'margin-top:5px', text: 'El día que piensas ponerte.' })),
+        h('div', { class: 'field' },
+          h('label', { class: 'label', text: 'Fecha tope' }), tope,
+          dateChips(tope, [
+            { label: 'MAÑANA', valor: addDays(today(), 1) },
+            { label: '+2D', valor: addDays(today(), 2) },
+            { label: '+3D', valor: addDays(today(), 3) },
+            { label: '+1 SEM', valor: addDays(today(), 7) },
+            { label: '+2 SEM', valor: addDays(today(), 14) },
+            { label: 'FIN DE MES', valor: finDeMes() },
+            { label: 'QUITAR', valor: '' },
+          ]),
+          h('div', { class: 'check-note', style: 'margin-top:5px', text: 'El día en que deja de servir hacerlo.' }))),
+      h('div', { class: 'row2' },
+        h('div', { class: 'field' },
+          h('label', { class: 'label', text: 'Aviso' }), avisoCampo,
+          avisoChips(avisoCampo, () => due.value, () => tope.value)),
+        h('div', { class: 'field' },
+          h('label', { class: 'label', text: 'Se repite' }), rep, repChips, repEco))),
+    bloque('NOTAS', notes),
+    h('div', { class: 'ed-history' },
+      h('span', { text: historia.join(' · ') }),
+      grita ? h('span', { class: 'tag tag-warn', text: grita }) : null));
 
   const cabecera = sheet({
-    title: 'Tarea',
+    title: 'Tarjeta',
+    wide: true,
     body,
     foot: [
       h('span', { class: 'micro', text: 'SE GUARDA SOLO' }),
@@ -553,9 +681,7 @@ export function openEditor(id) {
   });
 
   // Al cerrar, lo que quede a medio escribir se guarda igualmente.
-  openSheet(cabecera, {
-    onClose: () => { tituloGuarda.blur(); notasGuarda.blur(); repGuarda.blur(); },
-  });
+  openSheet(cabecera, { onClose: guardarPendiente });
 }
 
 /* ------------------------------ Fechas rápidas ----------------------------- */
@@ -771,7 +897,7 @@ export function openNote(id) {
   };
   const guardar = async (patch) => { await S.updateTask(id, patch); marcar(); };
 
-  const titulo = h('textarea', { class: 'textarea', style: 'min-height:52px', 'data-autofocus': '' });
+  const titulo = h('textarea', { class: 'textarea', style: 'min-height:52px', 'data-autofocus': 'end' });
   titulo.value = t.title;
   const gt = autosave(() => {
     const limpio = titulo.value.replace(/\n/g, ' ').trim();
@@ -982,10 +1108,11 @@ export function foldSection(id, title, { meta = null, body = null, micro = null,
     micro && visible ? h('div', { class: 'micro', style: 'margin:10px 0 0 22px', text: micro }) : null);
 }
 
-export function pageHead(title, sub = null) {
+export function pageHead(title, sub = null, grit = null) {
   return h('header', { class: 'page-head' },
     h('h1', { class: 'page-title', text: title }),
-    sub ? h('p', { class: 'page-sub', text: sub }) : null);
+    sub ? h('p', { class: 'page-sub', text: sub }) : null,
+    grit ? h('p', { class: 'page-grit', text: grit }) : null);
 }
 
 

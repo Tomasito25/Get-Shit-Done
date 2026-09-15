@@ -171,10 +171,18 @@ export const isTyping = (el = document.activeElement) =>
 /** Foco inmediato y de nuevo en el siguiente frame: escribir no debe esperar. */
 export function focusSoon(el) {
   if (!el) return;
+  // data-autofocus="end": el cursor al final, sin seleccionar. En una ficha que ya
+  // tiene texto, seleccionarlo todo hacía que la primera tecla lo borrase.
+  const alFinal = el.dataset && el.dataset.autofocus === 'end';
   const grab = () => {
     if (!el.isConnected) return;
     el.focus();
-    if (el.select) el.select();
+    if (alFinal && el.setSelectionRange) {
+      const n = (el.value || '').length;
+      el.setSelectionRange(n, n);
+    } else if (el.select) {
+      el.select();
+    }
   };
   grab();
   requestAnimationFrame(grab);

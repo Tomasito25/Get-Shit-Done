@@ -151,6 +151,9 @@ GSD funciona con un pequeño programa que se queda **en segundo plano** en tu or
 
 Apagar o quitar el acceso directo **nunca borra tus datos**.
 
+Abrir GSD desde el icono no muestra notificaciones. Solo si algo impide arrancarlo, un aviso te
+dice por qué.
+
 ---
 
 ## Primeros pasos: 5 minutos
@@ -244,11 +247,60 @@ Es lo primero que ves. De arriba abajo:
 
 Columnas: **Bandeja · Siguiente · En espera · Algún día · Hecho**.
 
-- Marca la **casilla** de una tarjeta para completarla.
-- Para cambiarla de columna, **arrástrala**, o pulsa **MOVER** y elige.
-- Filtra por **contexto** o salta a un **proyecto** con los botones de arriba.
-- Botón **COLUMNAS**: cambiar nombres, orden, ocultar alguna o poner un máximo de tarjetas.
+- **Arriba, lo que pide atención:** cuántas tareas hay para hoy, cuántas se han pasado de fecha,
+  cuántas tienen la fecha tope encima y cuántas llevan semanas quietas.
+- **Filtra escribiendo** (título, notas, proyecto o persona), o con **PARA HOY** y **CON TOPE**.
+- **Agrupa** las tarjetas por **proyecto** o por **contexto**. Sin agrupar, la columna *Siguiente*
+  separa lo que es **para hoy** de lo que **espera turno**.
+- Marca la **casilla** para completar. Si ha sido sin querer, **DESHACER** aparece abajo.
+- Para cambiar de columna, **arrástrala**, o pulsa **MOVER**. Llevarla a *En espera* te pregunta
+  **a quién** esperas: sin persona no hay espera.
+- Al pasar el ratón por una tarjeta: **▶** (enfocar), **HOY**, **★** (lo único), **MOVER**,
+  **EDITAR** y **✕**. Con el teclado: `Enter` abre, `Espacio` completa, `M` mueve.
+- **COLUMNAS**: cambiar nombres, orden, ocultar alguna o poner un máximo de tarjetas.
+  **TARJETAS**: qué enseña cada tarjeta (ver [Configuración](#configurar-las-tarjetas)).
 - **Hecho** solo guarda lo terminado en los últimos 7 días.
+
+### SIGUIENTES ACCIONES — qué puedo hacer ya
+
+![Siguientes acciones agrupadas por contexto](docs/siguientes.png)
+
+La pregunta de GTD: *estando donde estoy, ¿qué puedo hacer ahora?* Por eso se agrupa por
+**contexto** (también por proyecto, o sin agrupar).
+
+- Pulsa **ESTOY EN @casa** y ves solo lo que se puede hacer ahí.
+- Escribe arriba para **añadir una acción** sin salir de la pantalla.
+- Las que llevan semanas sin moverse se marcan **STALE**: o se hacen o se sueltan.
+- Debajo, **PROGRAMADAS**: lo que tiene día, ordenado por *mañana, esta semana, la que viene y
+  más adelante*. Llegan solas a la lista el día que les toca.
+
+### ALGÚN DÍA — ideas aparcadas
+
+Ordenadas por antigüedad, porque lo que lleva meses aparcado casi siempre es un no.
+
+- **DECIDIR UNA A UNA**: te enseña cada idea y eliges con una tecla: **1** activar, **2** programar,
+  **3** es un proyecto, **4** anotar, **5** sigue aparcada, **6** eliminar.
+- En cada idea: **ACTIVAR**, **PROGRAMAR** (con días rápidos), **PROYECTO** (la convierte en un
+  proyecto con su código), **ANOTAR**.
+- Escribe arriba para aparcar una idea nueva.
+
+### CALENDARIO — planificar la semana
+
+![Calendario: semana con bandejas de vencidas y sin día](docs/calendario.png)
+
+Tres vistas: **SEMANA**, **MES** y **AGENDA** (las próximas tres semanas en lista). Cada día enseña
+lo que piensas hacer, sus **fechas tope** (en rojo), sus **avisos** (◷), a quién toca **preguntar**
+(→) y, con **VER LO HECHO**, lo que cerraste.
+
+- **Arrastra** una tarea a otro día para cambiarla de fecha. Escribe en **+ añadir** para crear
+  una tarea directamente en ese día.
+- Debajo, dos bandejas: **VENCIDAS** (se te pasó la fecha) y **SIN DÍA** (acciones sin fecha).
+  Arrástralas a la semana para planificarla.
+- Un día con más tareas que tu límite de compromisos se marca **DEMASIADO**.
+- Las reglas no cambian por arrastrar: mover a más tarde un **compromiso** pide mantener pulsado;
+  mover una tarea **vencida** cuenta como aplazamiento; la **fecha tope** no se arrastra; y el
+  pasado no se planifica.
+- `←` `→` cambian de semana o de mes.
 
 ### ANOTACIONES — información, no tareas
 
@@ -277,30 +329,45 @@ dijiste que harías has hecho de verdad.
 
 | Pantalla | Para qué sirve |
 |---|---|
-| **SIGUIENTES ACCIONES** | Lista de todo lo que se puede hacer ya, filtrable por contexto. |
 | **EN ESPERA** | Lo que depende de otros, agrupado por persona. **+7D** retrasa la revisión una semana. |
-| **ALGÚN DÍA** | Ideas aparcadas. **ACTIVAR** las devuelve a la lista de trabajo. |
-| **CALENDARIO** | Mes a mes: lo que tiene fecha y los avisos de cada día. |
 | **DATOS** | Dónde están tus datos, copias de seguridad, exportar e importar. |
-| **CONFIGURACIÓN** | Contextos, carpetas, columnas, límite de compromisos al día y tema claro u oscuro. |
+| **CONFIGURACIÓN** | Contextos, carpetas, tarjetas, columnas, límite de compromisos al día y tema. |
 
-### Dentro de una tarea
+### La ficha de una tarjeta
 
-Haz clic en cualquier tarea para abrirla. **No hay botón de guardar: todo se guarda solo.**
+![Ficha de una tarjeta](docs/ficha.png)
 
-- **Fechas en un toque:** bajo cada fecha hay botones como **HOY · MAÑANA · +2D · +1 SEM**.
-- **Aviso:** botones rápidos como **EN 1 H** o **MAÑANA 9:00**. Llega como notificación del
-  escritorio aunque el navegador esté cerrado, siempre que GSD esté encendido.
-- **Se repite:** `diario`, `3d` (cada 3 días), `lun,mie,vie`, `mes-1` (el día 1 de cada mes). La
-  siguiente aparece cuando completas la actual: nunca se acumulan copias.
-- **No negociar** y **Lo único:** casillas para comprometerte.
+Haz clic en cualquier tarea para abrir su ficha. **No hay botón de guardar: todo se guarda solo.**
+
+- **Arriba, su estado:** BANDEJA · SIGUIENTE · EN ESPERA · ALGÚN DÍA · HECHA. Un clic la cambia.
+- **Acciones rápidas:** EMPEZAR, TRABAJO PROFUNDO, PARA HOY, POSPONER, **DUPLICAR**, ES UNA
+  ANOTACIÓN y ELIMINAR.
+- **Qué, dónde, cuándo:** título; proyecto y contexto; *cuándo lo haces* y *fecha tope* con
+  botones como **HOY · MAÑANA · +2D · +1 SEM**; aviso con **EN 1 H** o **MAÑANA 9:00**.
+- **Se repite:** `diario`, `3d`, `lun,mie,vie`, `mes-1`, o los botones **DIARIO · LUN–VIE ·
+  SEMANAL · DÍA 1 DEL MES**. La siguiente aparece al completar la actual, con su aviso y su fecha
+  tope a la misma distancia.
+- **Compromiso:** *No negociar* y *Lo único*.
+- **Al pie, su historia:** cuándo se capturó, cuántas veces se ha pospuesto y si lleva demasiado
+  tiempo viva.
+
+### Configurar las tarjetas
+
+En **CONFIGURACIÓN → TARJETAS**, con una vista previa que cambia al momento:
+
+- **Tamaño:** normal o **compacta** (caben muchas más en pantalla).
+- **Botones:** al pasar el ratón o siempre visibles.
+- **Qué enseñan:** proyecto, contexto, cuándo, fecha tope, aviso, repetición, a quién esperas,
+  la primera línea de las notas, la antigüedad y los aplazamientos. Lo único, los compromisos y
+  las fechas tope vencidas se marcan siempre en el borde.
 
 ### Enfoque y trabajo profundo
 
 - **ENFOQUE** (tecla `F`): pantalla completa con una tarea. Temporizador de 25, 50 o 90 minutos, o sin límite.
 - **TRABAJO PROFUNDO** (tecla `D`): antes de empezar eliges cuánto dura (60, 90, 120 minutos o
   sin límite) y escribes qué significa haber terminado. Mientras dura, `Esc` no te saca: para
-  abandonar hay que mantener pulsado el botón. Al acabar, se apuntan los minutos.
+  abandonar hay que mantener pulsado el botón. Al acabar, se apuntan los minutos. Si cierras o
+  recargas la pestaña en mitad del bloque, al volver sigue en marcha.
 
 ---
 
@@ -343,10 +410,11 @@ Toda la aplicación se puede usar sin ratón. Pulsa `?` dentro de GSD para verlo
 | `P` | Proyectos | | `Esc` | Cerrar / salir |
 | `I` | Aclarar la bandeja | | `/` o `Ctrl` `K` | Buscar |
 | `F` | Enfoque | | `\` | Plegar la barra lateral |
-| `D` | Trabajo profundo | | `0`–`6` | Opciones al aclarar |
+| `D` | Trabajo profundo | | `0`–`6` | Aclarar la bandeja · decidir algún día |
 | `O` | Elegir lo único | | `W` | En espera |
 | `S` | Algún día | | `A` | Anotaciones |
 | `C` | Calendario | | `R` | Revisión semanal |
+| `M` | Mover la tarjeta con el foco | | `←` `→` | Calendario: semana o mes anterior / siguiente |
 
 ---
 
@@ -499,6 +567,7 @@ Task      id · title · status · projectId · context · dueDate · deadline �
           postponeCount · recurrence · pinned
 Project   id · code · name · outcome · folderId · status · pausedUntil · createdAt
 Folder    id · name · createdAt                      (guardadas en los ajustes)
+Ajustes   … · cards (qué enseñan las tarjetas) · boardGroup · calendarView
 Waiting   id · taskId · person · description · reviewDate
 Session   id · taskId · kind · plannedMin · startedAt · endedAt · minutes · note
 ```
@@ -529,9 +598,11 @@ parte de lo que dijiste que harías has hecho, y cuántas horas de trabajo profu
 **Pocas cosas a la vez.** Una sola tarea en *lo único*, un máximo de compromisos al día y columnas
 con límite. Tener la lista larga no es tenerlo controlado.
 
-**El tono.** Todo está en español salvo algunas frases cortas en inglés, en la línea de David
-Goggins (*Stop negotiating. Start.*). Ninguna frase es aleatoria: dependen de lo que estás
-haciendo o dejando de hacer. Y detrás de todas, una idea: **si cuesta, es que estás aprendiendo.**
+**El tono.** Todo está en español salvo una línea corta en inglés en cada pantalla, en la línea
+de David Goggins: *A DATE YOU MISSED IS A PROMISE YOU BROKE*, *A LONG LIST IS A HIDING PLACE*,
+*STAY HARD*. Ninguna es aleatoria: salen de lo que estás haciendo o dejando de hacer —lo que
+arrastras, lo que acumulas, lo que evitas—, y la barra lateral lleva la cuenta del día. Detrás
+de todas, una idea: **si cuesta, es que estás aprendiendo.**
 
 ---
 

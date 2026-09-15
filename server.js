@@ -346,6 +346,8 @@ async function checkReminders() {
 
   for (const t of datos.tasks || []) {
     if (!t || t.completed || !t.reminder || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(t.reminder)) continue;
+    // Lo aparcado en algún día y las anotaciones no se hacen: no pueden avisar.
+    if (t.status === 'someday' || t.status === 'reference') continue;
     if (t.projectId && pausados.has(t.projectId)) continue;
     const clave = `${t.id}|${t.reminder}`;
     if (enviados[clave]) continue;

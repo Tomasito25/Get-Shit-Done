@@ -24,7 +24,8 @@ export function list() {
   const parados = S.stalledProjects();
   const carpetas = S.folders();
 
-  add(wrap, pageHead('PROYECTOS', V.projectsLine(proyectos.length, parados.length)));
+  add(wrap, pageHead('PROYECTOS', V.projectsLine(proyectos.length, parados.length),
+    V.gritProjects({ stalled: parados.length, paused: pausados.length, total: proyectos.length })));
 
   add(wrap, h('div', { class: 'proj-tools' },
     h('button', { class: 'btn btn-sm', type: 'button', text: '+ CARPETA', onclick: () => nuevaCarpeta() }),

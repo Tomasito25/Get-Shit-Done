@@ -16,7 +16,7 @@ import * as focus from '../focus.js';
 import * as inbox from './inbox.js';
 import {
   pageHead, section, openEditor, openDelegate, openPostpone, askDelete,
-  askOneThing, askCommit, confirmSheet, deadlineTag, pickTask,
+  askOneThing, askCommit, confirmSheet, deadlineTag, pickTask, completeToggle,
 } from '../components.js';
 
 /**
@@ -164,7 +164,8 @@ export function render() {
   add(wrap, pageHead('REVISIÓN SEMANAL',
     last
       ? `Última revisión hace ${plural(dias === null ? 0 : dias, 'día', 'días')} · ${new Date(last).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}`
-      : 'Nunca has cerrado una revisión. El sistema solo funciona si se revisa.'));
+      : 'Nunca has cerrado una revisión. El sistema solo funciona si se revisa.',
+    V.gritReview(S.stats().rate)));
 
   if (completa) {
     add(wrap, cierre());
@@ -283,7 +284,7 @@ function panelBandeja() {
   return h('div', {},
     h('div', { class: 'micro', style: 'margin-bottom:10px', text: 'CADA COSA RESPONDE A UNA PREGUNTA: ¿QUÉ ES ESTO? Y SALE DE AQUÍ.' }),
     h('div', { class: 'rows' }, items.slice(0, 8).map((t) => fila(t, [
-      { label: 'ACLARAR', fn: () => inbox.startProcessing() },
+      { label: 'ACLARAR', fn: () => inbox.startProcessing(t.id) },
       { label: 'ELIMINAR', warn: true, fn: () => askDelete(t.id) },
     ]))),
     h('div', { style: 'margin-top:12px' },
@@ -297,7 +298,7 @@ function panelDeuda() {
     h('div', { class: 'micro', style: 'margin-bottom:10px', text: 'NO SE ARRASTRA A LA SEMANA SIGUIENTE SIN DECIDIRLO. HAZLA, REPROGRÁMALA O TÍRALA.' }),
     h('div', { class: 'rows' }, items.map((t) => fila(t, [
       { label: 'HACERLA', fn: () => focus.open(t.id) },
-      { label: 'HECHA', fn: () => S.complete(t.id) },
+      { label: 'HECHA', fn: () => completeToggle(t.id) },
       { label: 'PROGRAMAR', fn: () => openPostpone(t.id) },
       { label: 'ELIMINAR', warn: true, fn: () => askDelete(t.id) },
     ], h('span', { class: 'tag tag-late', text: `ARRASTRAS ${S.carriedDays(t)}D` })))));
@@ -420,7 +421,7 @@ function panelEspera() {
             ? h('span', { class: w.reviewDate <= today() ? 'tag tag-late' : '', text: `REVISAR ${relDate(w.reviewDate)}` })
             : h('span', { class: 'tag tag-warn', text: 'SIN FECHA DE REVISIÓN' }))),
       h('div', { class: 'row-acts', style: 'opacity:1' },
-        h('button', { class: 'row-act', type: 'button', text: 'RECIBIDO', onclick: () => S.complete(t.id) }),
+        h('button', { class: 'row-act', type: 'button', text: 'RECIBIDO', onclick: () => completeToggle(t.id) }),
         h('button', {
           class: 'row-act', type: 'button', text: '+7D',
           onclick: () => S.delegate(t.id, {
@@ -537,7 +538,19 @@ function panelSemana() {
     h('div', { class: 'label', style: 'margin-top:18px', text: `Comprometido para hoy · ${compromisos.length} de ${S.commitCap()}` }),
     compromisos.length
       ? h('div', { class: 'rows' }, compromisos.map((t) => fila(t, [
-        { label: 'RETIRAR', fn: () => S.uncommit(t.id) },
+        {
+          label: 'RETIRAR',
+          fn: () => confirmSheet({
+            title: 'Retirar el compromiso',
+            body: h('div', {},
+              h('div', { class: 'hard-line', text: t.title }),
+              h('div', { class: 'onething-ask', style: 'font-size:16px;margin-top:16px', text: 'Dijiste que esto no se negociaba.' })),
+            confirmText: 'RETIRARLO',
+            warn: true,
+            hold: true,
+            onConfirm: () => S.uncommit(t.id),
+          }),
+        },
       ])))
       : h('div', { class: 'empty', text: 'Nada comprometido todavía.' }));
 }

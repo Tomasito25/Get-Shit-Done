@@ -247,9 +247,53 @@ function defaultSettings() {
     columns: null,
     commitCap: 5,
     postponeAlert: 3,
+    cards: null,
+    boardGroup: 'none',
+    calendarView: 'semana',
     createdAt: now(),
   };
 }
+
+/* ------------------------ Cómo se ven las tarjetas ------------------------ */
+
+/**
+ * Qué enseña una tarjeta del tablero. Por defecto, lo que sirve para decidir;
+ * lo demás se enciende en CONFIGURACIÓN. Una tarjeta que lo dice todo no dice nada.
+ */
+export const CARD_FIELDS = [
+  { key: 'project', label: 'Proyecto', hint: 'P04-NOMBRE encima del título' },
+  { key: 'context', label: 'Contexto', hint: '@casa, @ordenador…' },
+  { key: 'due', label: 'Cuándo lo haces', hint: 'HOY, MAÑANA, +3D' },
+  { key: 'deadline', label: 'Fecha tope', hint: 'con los días que quedan' },
+  { key: 'reminder', label: 'Aviso', hint: 'día y hora' },
+  { key: 'recurrence', label: 'Repetición', hint: '↻ LUN·MIÉ' },
+  { key: 'waiting', label: 'A quién esperas', hint: 'y cuándo revisar' },
+  { key: 'notes', label: 'Notas', hint: 'la primera línea, debajo del título' },
+  { key: 'age', label: 'Antigüedad', hint: 'días que lleva sin cerrarse' },
+  { key: 'postpone', label: 'Aplazamientos', hint: 'POSPUESTA ×3 cuando aprieta' },
+];
+
+const CARDS_DEFAULT = {
+  density: 'normal',       // normal | compact
+  actions: 'hover',        // hover | always
+  show: { project: true, context: true, due: true, deadline: true, reminder: true, recurrence: true, waiting: true, notes: true, age: true, postpone: true },
+};
+
+export function cardPrefs() {
+  const guardadas = (state.settings && state.settings.cards) || {};
+  return {
+    density: guardadas.density === 'compact' ? 'compact' : 'normal',
+    actions: guardadas.actions === 'always' ? 'always' : 'hover',
+    show: { ...CARDS_DEFAULT.show, ...(guardadas.show || {}) },
+  };
+}
+
+export async function saveCardPrefs(patch) {
+  const actual = cardPrefs();
+  await saveSettings({ cards: { ...actual, ...patch, show: { ...actual.show, ...(patch.show || {}) } } });
+}
+
+export const resetCardPrefs = () => saveSettings({ cards: null });
 
 /* --------------------------- Columnas del tablero ------------------------- */
 
@@ -336,10 +380,28 @@ export async function boot() {
   const conCodigo = assignProjectCodes();
   if (conCodigo.length) await db.putMany('projects', conCodigo);
   state.wokenProjects = await wakeProjects();
+  await promoteDue();
 
   state.ready = true;
   sync.init(snapshot);
   emit();
+}
+
+/**
+ * Lo programado deja de estarlo el día que llega: pasa a siguiente acción.
+ * Sin esto, una tarea con fecha de ayer seguía «programada» y no aparecía en
+ * SIGUIENTES ACCIONES, y su proyecto parecía no tener siguiente acción.
+ * Se llama al arrancar y cada vez que cambia el día con la app abierta.
+ */
+export async function promoteDue() {
+  const hoy = today();
+  const llegan = state.tasks.filter((t) => t.status === STATUS.SCHEDULED && !t.completed && t.dueDate && t.dueDate <= hoy);
+  llegan.forEach((t) => { t.status = STATUS.NEXT; });
+  if (llegan.length) {
+    await db.putMany('tasks', llegan);
+    if (state.ready) touched();
+  }
+  return llegan.length;
 }
 
 /** Invariante duro del sistema: como mucho una One Thing viva. */
@@ -415,19 +477,35 @@ export async function captureSmart(raw) {
 export async function updateTask(id, patch) {
   const t = byId(id);
   if (!t) return null;
+  const antes = t.status;
   // `undefined` significa "no tocar", no "borrar": Object.assign no distingue.
   for (const [k, v] of Object.entries(patch)) {
     if (v !== undefined) t[k] = v;
   }
   if (t.completed && t.status !== STATUS.DONE) t.status = STATUS.DONE;
+  if (t.recurrence) t.recurrence = normRecurrence(t.recurrence);
+  // Lo que deja de estar en espera (sin cerrarse) ya no espera a nadie: sin esto,
+  // el calendario seguía pidiendo revisar a una persona de la que ya no dependes.
+  if (antes === STATUS.WAITING && t.status !== STATUS.WAITING && t.status !== STATUS.DONE) {
+    t.waitingFor = null;
+    const w = waitingByTask(id);
+    if (w) {
+      state.waitings = state.waitings.filter((x) => x.id !== w.id);
+      await db.del('waitings', w.id);
+    }
+  }
   await persistTask(t);
   touched();
   return t;
 }
 
+/** La última tarea cerrada, para poder deshacerlo sin dejar rastro. */
+let ultimoCierre = null;
+
 export async function complete(id) {
   const t = byId(id);
   if (!t || t.completed) return null;
+  ultimoCierre = { id, isOneThing: t.isOneThing, status: t.status, spawned: null };
   Object.assign(t, {
     completed: true,
     status: STATUS.DONE,
@@ -441,10 +519,59 @@ export async function complete(id) {
   if (siguiente) {
     state.tasks.push(siguiente);
     await persistTask(siguiente);
+    ultimoCierre.spawned = siguiente.id;
   }
   touched();
   return t;
 }
+
+/**
+ * Deshacer un cierre por error: la tarea vuelve como estaba —también si era lo
+ * único— y la repetición que nació al cerrarla desaparece, para no duplicarla.
+ */
+export async function undoComplete(id) {
+  const cierre = ultimoCierre && ultimoCierre.id === id ? ultimoCierre : null;
+  ultimoCierre = null;
+  if (cierre && cierre.spawned) {
+    const hija = byId(cierre.spawned);
+    if (hija && !hija.completed) {
+      state.tasks = state.tasks.filter((x) => x.id !== hija.id);
+      await db.del('tasks', hija.id);
+    }
+  }
+  const t = await uncomplete(id);
+  if (t && cierre) {
+    const patch = {};
+    if (cierre.status === STATUS.WAITING || cierre.status === STATUS.INBOX || cierre.status === STATUS.SOMEDAY) patch.status = cierre.status;
+    if (cierre.isOneThing && !oneThing()) patch.isOneThing = true;
+    if (Object.keys(patch).length) await updateTask(id, patch);
+  }
+  return t;
+}
+
+/** Copia de una tarea, sin su historia: ni hecha, ni lo único, ni aplazamientos. */
+export async function duplicateTask(id) {
+  const t = byId(id);
+  if (!t) return null;
+  const copia = newTask(`${t.title}`, {
+    status: t.completed ? STATUS.NEXT : (t.status === STATUS.DONE ? STATUS.NEXT : t.status),
+    projectId: t.projectId,
+    context: t.context,
+    dueDate: t.dueDate,
+    deadline: t.deadline,
+    notes: t.notes,
+    recurrence: t.recurrence,
+    isCommitment: false,
+  });
+  if (copia.status === STATUS.WAITING) copia.status = STATUS.NEXT;
+  state.tasks.push(copia);
+  await persistTask(copia);
+  touched();
+  return copia;
+}
+
+/** Días que lleva viva una tarea desde que se capturó. */
+export const taskAge = (t) => (t && t.createdAt ? Math.max(0, daysBetween(iso(new Date(t.createdAt)), today())) : 0);
 
 /** La siguiente ocurrencia nace al cerrar la anterior: nunca se acumulan. */
 function spawnNext(t) {
@@ -452,11 +579,17 @@ function spawnNext(t) {
   const base = t.dueDate && t.dueDate >= today() ? t.dueDate : today();
   const due = nextDate(t.recurrence, base);
   if (!due) return null;
+  // El aviso y la fecha tope viajan con la repetición, a la misma distancia del día.
+  const referencia = t.dueDate || base;
+  const reminder = t.reminder ? `${addDays(due, daysBetween(referencia, t.reminder.slice(0, 10)))}T${t.reminder.slice(11, 16)}` : null;
+  const deadline = t.deadline ? addDays(due, daysBetween(referencia, t.deadline)) : null;
   return newTask(t.title, {
     status: due <= today() ? STATUS.NEXT : STATUS.SCHEDULED,
     projectId: t.projectId,
     context: t.context,
     dueDate: due,
+    deadline,
+    reminder,
     notes: t.notes,
     isCommitment: t.isCommitment,
     recurrence: t.recurrence,
@@ -522,6 +655,7 @@ export async function makeSomeday(id) {
     isCommitment: false,
     isOneThing: false,
     dueDate: null,
+    reminder: null,
   });
 }
 
@@ -603,7 +737,8 @@ export async function setOneThing(id) {
     status: target.status === STATUS.DONE ? STATUS.NEXT : STATUS.NEXT,
     completed: false,
     completedAt: target.completed ? null : target.completedAt,
-    dueDate: target.dueDate && target.dueDate > today() ? today() : target.dueDate || today(),
+    // Elegirla hoy es comprometerse hoy: con la fecha vieja nacía ya «arrastrada».
+    dueDate: today(),
   });
   changed.push(target);
   await db.putMany('tasks', changed);
@@ -638,24 +773,28 @@ export async function uncommit(id) {
 export async function postpone(id, when) {
   const t = byId(id);
   if (!t) return null;
-  const count = (t.postponeCount || 0) + 1;
+  // Adelantar no es aplazar: solo cuenta si la fecha se va más lejos.
+  const destino = when === 'someday' ? null : (when === 'tomorrow' ? addDays(today(), 1) : when);
+  const referencia = t.dueDate || today();
+  const aplaza = when === 'someday' || destino > referencia;
+  const count = (t.postponeCount || 0) + (aplaza ? 1 : 0);
 
   if (when === 'someday') {
     await updateTask(id, {
       status: STATUS.SOMEDAY,
       dueDate: null,
+      reminder: null,
       isCommitment: false,
       isOneThing: false,
       postponeCount: count,
     });
     return t;
   }
-  const date = when === 'tomorrow' ? addDays(today(), 1) : when;
-  const future = date > today();
+  const future = destino > today();
   await updateTask(id, {
-    dueDate: date,
+    dueDate: destino,
     status: future ? STATUS.SCHEDULED : STATUS.NEXT,
-    isOneThing: false,
+    isOneThing: future ? false : t.isOneThing,
     isCommitment: future ? false : t.isCommitment,
     postponeCount: count,
   });
@@ -915,11 +1054,14 @@ export const oneThing = () => state.tasks.find((t) => t.isOneThing && !t.complet
 /** Vence hoy o antes: lo programado llega y se convierte en trabajo de hoy. */
 export const isDue = (t) => !!t.dueDate && t.dueDate <= today();
 
+/** Un compromiso con fecha futura es de ese día, no de hoy. */
+const commitmentForToday = (t) => t.isCommitment && (!t.dueDate || t.dueDate <= today());
+
 export function todayList() {
   return active()
     .filter((t) =>
       (t.status === STATUS.NEXT || t.status === STATUS.SCHEDULED) &&
-      (t.isCommitment || isDue(t)))
+      (commitmentForToday(t) || isDue(t)))
     .sort((a, b) => {
       if (a.isOneThing !== b.isOneThing) return a.isOneThing ? -1 : 1;
       const ao = isOverdue(a) ? 0 : 1;
@@ -949,7 +1091,12 @@ export function deadlineState(t) {
 }
 
 /** Lo que vence pronto y sigue vivo, lo mas apretado primero. */
+/** Lo aparcado o archivado no aprieta: algún día y anotaciones no cuentan. */
+const ACCIONABLE = new Set([STATUS.INBOX, STATUS.NEXT, STATUS.SCHEDULED, STATUS.WAITING]);
+export const isActionable = (t) => ACCIONABLE.has(t.status) && !t.completed;
+
 export const upcomingDeadlines = (dias = 14) => active()
+  .filter(isActionable)
   .filter((t) => t.deadline && daysBetween(today(), t.deadline) <= dias)
   .sort((a, b) => a.deadline.localeCompare(b.deadline));
 
@@ -985,7 +1132,7 @@ export function commitments() {
 
 export function nextActions({ context = null, projectId = null } = {}) {
   return active()
-    .filter((t) => t.status === STATUS.NEXT)
+    .filter((t) => t.status === STATUS.NEXT || (t.status === STATUS.SCHEDULED && isDue(t)))
     .filter((t) => (context ? t.context === context : true))
     .filter((t) => (projectId ? t.projectId === projectId : true))
     .sort((a, b) => {
@@ -1037,7 +1184,7 @@ export function projectTasks(projectId, { includeDone = false } = {}) {
 
 /** Un proyecto sin siguiente accion no avanza: es una intencion, no un plan. */
 export function projectNext(projectId) {
-  return projectTasks(projectId).find((t) => t.status === STATUS.NEXT) || null;
+  return projectTasks(projectId).find((t) => t.status === STATUS.NEXT || (t.status === STATUS.SCHEDULED && isDue(t))) || null;
 }
 
 export const stalledProjects = () => activeProjects().filter((p) => !projectNext(p.id));
@@ -1064,7 +1211,50 @@ export function reviewsOnDate(date) {
   return state.waitings
     .filter((w) => w.reviewDate === date)
     .map((w) => ({ waiting: w, task: byId(w.taskId) }))
-    .filter((x) => x.task && !x.task.completed);
+    .filter((x) => x.task && !x.task.completed && x.task.status === STATUS.WAITING && !isPausedTask(x.task));
+}
+
+/* ------------------------------- Calendario ------------------------------- */
+
+const ordenDia = (a, b) => {
+  if (a.isOneThing !== b.isOneThing) return a.isOneThing ? -1 : 1;
+  if (a.isCommitment !== b.isCommitment) return a.isCommitment ? -1 : 1;
+  return (a.reminder || '99').localeCompare(b.reminder || '99') || a.createdAt.localeCompare(b.createdAt);
+};
+
+/**
+ * Todo lo que ocurre un día, separado por lo que significa: lo que piensas
+ * hacer, lo que vence, lo que te avisa, a quién toca preguntar, lo que hiciste
+ * y cuánto trabajaste de verdad. Lo pausado no ocupa sitio.
+ */
+export function dayAgenda(date) {
+  const fuera = pausados();
+  const vivas = state.tasks.filter((t) => !t.completed && !(t.projectId && fuera.has(t.projectId)));
+  return {
+    due: vivas.filter((t) => t.dueDate === date && isActionable(t)).sort(ordenDia),
+    deadlines: vivas.filter((t) => t.deadline === date && isActionable(t)).sort(ordenDia),
+    reminders: vivas.filter((t) => t.reminder && reminderDate(t) === date && isActionable(t))
+      .sort((a, b) => a.reminder.localeCompare(b.reminder)),
+    reviews: reviewsOnDate(date),
+    done: state.tasks.filter((t) => t.completed && t.completedAt && iso(new Date(t.completedAt)) === date)
+      .sort((a, b) => (a.completedAt || '').localeCompare(b.completedAt || '')),
+    deep: deepMinutesOn(date),
+  };
+}
+
+/** Lo que tenía fecha y ya pasó sin hacerse. */
+export const overdueTasks = () => active()
+  .filter(isActionable)
+  .filter((t) => t.status !== STATUS.WAITING && t.dueDate && t.dueDate < today())
+  .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+
+/** Siguientes acciones sin día: lo que se reparte al planificar la semana. */
+export const unscheduledActions = () => nextActions().filter((t) => !t.dueDate);
+
+export function deepMinutesOn(date) {
+  return state.sessions
+    .filter((x) => x.kind === 'deep' && x.startedAt && iso(new Date(x.startedAt)) === date)
+    .reduce((n, x) => n + (x.minutes || 0), 0);
 }
 
 /* ------------------------------- Anotaciones ------------------------------ */
@@ -1219,6 +1409,7 @@ export function remindersToday() {
   const ahora = new Date();
   const hhmm = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
   return active()
+    .filter(isActionable)
     .filter((t) => t.reminder && reminderDate(t) === hoy && reminderTime(t) >= hhmm)
     .sort((a, b) => a.reminder.localeCompare(b.reminder));
 }

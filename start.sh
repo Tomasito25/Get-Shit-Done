@@ -27,16 +27,17 @@ DESKTOP_FILE="gsd.desktop"
 
 # --------------------------------------------------------------------------
 
-# Desde el menú o el escritorio no hay terminal: el mensaje llega como notificación.
 say() {
   echo "$1"
-  if [ ! -t 1 ] && command -v notify-send >/dev/null 2>&1; then
-    notify-send -a GSD -i "${DIR}/public/icon.svg" "GSD" "$1" >/dev/null 2>&1 || true
-  fi
 }
 
+# Abrir desde el icono no genera notificaciones. La única excepción es un fallo:
+# sin terminal a la vista, sería el icono que no hace nada y no dice por qué.
 fail() {
-  say "$1" >&2
+  echo "$1" >&2
+  if [ ! -t 2 ] && command -v notify-send >/dev/null 2>&1; then
+    notify-send -a GSD -i "${DIR}/public/icon.svg" "GSD no ha podido arrancar" "$1" >/dev/null 2>&1 || true
+  fi
   exit 1
 }
 
@@ -145,15 +146,11 @@ Terminal=false
 StartupNotify=false
 Categories=Office;ProjectManagement;
 Keywords=gsd;gtd;tareas;productividad;focus;inbox;
-Actions=stop;status;
+Actions=stop;
 
 [Desktop Action stop]
 Name=Detener el servidor
 Exec="${DIR}/start.sh" stop
-
-[Desktop Action status]
-Name=¿Está en marcha?
-Exec="${DIR}/start.sh" status
 DESKTOP
 }
 

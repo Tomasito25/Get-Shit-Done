@@ -619,9 +619,11 @@ body.nav-collapsed .nav-brand{justify-content:center}
 .card:hover{border-color:var(--ink-2)}
 .card:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
 .card.dragging{opacity:.4;cursor:grabbing}
-.card-one{border-left:3px solid var(--ink)}
+.card-one{border-left:3px solid var(--ink);background:var(--sel)}
+.card-commit{border-left:2px solid var(--ink-2)}
+.card-today{box-shadow:inset 0 2px 0 var(--ink-2)}
 .card-dl{border-left:3px solid var(--warn)}
-.card-done{opacity:.6}
+.card-done{opacity:.55}
 .card-done .card-title{color:var(--faint);text-decoration:line-through}
 
 /* Completar esta siempre a un clic, y es lo primero de la tarjeta. */
@@ -636,14 +638,33 @@ body.nav-collapsed .nav-brand{justify-content:center}
   border:solid var(--bg);border-width:0 2px 2px 0;transform:rotate(42deg);
 }
 .card-body{flex:1;min-width:0}
-.card-proj{
-  font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;
-  text-transform:uppercase;color:var(--muted);margin-bottom:5px;
+
+/* Arriba: de dónde es, dónde se hace y cuánto lleva ahí. */
+.card-top{
+  display:flex;gap:8px;align-items:baseline;margin-bottom:5px;min-width:0;
+  font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+}
+.card-proj{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.card-proj b{color:var(--ink-2);font-weight:700;margin-right:5px}
+.card-ctx{text-transform:none;letter-spacing:.02em;white-space:nowrap}
+.card-age{margin-left:auto;white-space:nowrap;color:var(--faint)}
+.card-age-old{color:var(--warn);font-weight:700}
+.card-title{font-size:13.5px;line-height:1.35;color:var(--ink);word-break:break-word}
+.card-note{
+  font-size:11.5px;line-height:1.4;color:var(--muted);margin-top:4px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
-.card-title{font-size:13.5px;line-height:1.35;color:var(--ink);word-break:break-word}
 .card-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:7px}
 .card-tags .tag{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Compacta: más tarjetas a la vista, lo mismo de información esencial. */
+.card-compact{padding:6px 8px;gap:7px}
+.card-compact .card-title{font-size:12.5px;line-height:1.3}
+.card-compact .card-top{margin-bottom:3px}
+.card-compact .card-tags{margin-top:4px}
+.card-compact .card-note{display:none}
+.card-compact .card-check{width:14px;height:14px}
+.card-compact .card-check.done::after{left:3px;top:0}
 
 /* Barra de vencimiento: solo cuando la fecha tope ya aprieta. */
 .card-dlbar{height:2px;margin-top:8px;background:var(--line-2)}
@@ -651,17 +672,55 @@ body.nav-collapsed .nav-brand{justify-content:center}
 .card-dlbar-today{background:var(--warn)}
 .card-dlbar-late{background:var(--warn);opacity:1}
 
+/* Acciones: al pasar por encima flotan sobre la esquina y no ocupan sitio. */
 .card-acts{
-  display:flex;gap:2px;flex-wrap:wrap;margin-top:8px;opacity:0;
-  border-top:1px solid var(--line-2);padding-top:6px;
+  position:absolute;top:-1px;right:-1px;display:flex;gap:0;z-index:2;
+  background:var(--panel);border:1px solid var(--ink-2);
+  opacity:0;pointer-events:none;
 }
-.card:hover .card-acts,.card:focus-within .card-acts{opacity:1}
+.card:hover .card-acts,.card:focus-within .card-acts{opacity:1;pointer-events:auto}
+.card-acts-on .card-acts{
+  position:static;opacity:1;pointer-events:auto;flex-wrap:wrap;gap:2px;
+  border:none;border-top:1px solid var(--line-2);background:none;margin-top:8px;padding-top:6px;
+}
 .card-act{
   font-family:var(--mono);font-size:9px;letter-spacing:.1em;
-  color:var(--muted);padding:2px 6px;text-transform:uppercase;
+  color:var(--muted);padding:3px 7px;text-transform:uppercase;
 }
 .card-act:hover{background:var(--ink);color:var(--bg)}
 .card-act.warn:hover{background:var(--warn);color:#fff}
+
+/* Grupos dentro de una columna. */
+.col-group{
+  display:flex;justify-content:space-between;align-items:baseline;
+  font-family:var(--mono);font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--muted);padding:6px 2px 1px;border-bottom:1px solid var(--line-2);
+}
+.col-group:first-child{padding-top:0}
+.col-group-strong{color:var(--ink);font-weight:700;border-bottom-color:var(--ink-2)}
+.col-group-n{color:var(--faint)}
+
+/* Herramientas y resumen del tablero. */
+.board-tools{display:flex;gap:10px 16px;align-items:center;flex-wrap:wrap;margin:6px 0 14px}
+.board-tools-group{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.board-search{
+  flex:1 1 260px;min-width:0;background:var(--panel);border:1px solid var(--line);
+  padding:7px 10px;font-size:13px;color:var(--ink);
+}
+.board-search:focus{outline:none;border-color:var(--ink)}
+.board-search::placeholder{color:var(--faint)}
+.board-summary{
+  display:flex;gap:6px 18px;flex-wrap:wrap;margin:-18px 0 16px;
+  font-size:12px;color:var(--muted);
+}
+.board-summary b{font-family:var(--mono);color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
+.board-summary .bad,.board-summary .bad b{color:var(--warn)}
+
+/* La línea Goggins: inglés, corta, bajo el título. */
+.page-grit{
+  font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ink);margin:10px 0 0;font-weight:700;
+}
 
 /* Fecha tope: la urgencia se ve, no se calcula. */
 .tag-dl{border-color:var(--muted);color:var(--muted)}
@@ -907,9 +966,6 @@ body.nav-collapsed .nav-brand{justify-content:center}
 
 /* ------------------------ Herramientas del tablero ------------------------ */
 
-.board-tools{
-  display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:16px;
-}
 .col-over .col-head{border-bottom-color:var(--warn)}
 .col-count.over{color:var(--warn);font-weight:700}
 
@@ -939,38 +995,109 @@ body.nav-collapsed .nav-brand{justify-content:center}
 
 /* ------------------------------- Calendario ------------------------------ */
 
-.cal-head{display:flex;align-items:center;gap:14px;margin-bottom:20px}
+.cal-head{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
 .cal-month{
   font-family:var(--mono);font-size:12px;letter-spacing:.2em;
-  text-transform:uppercase;font-weight:600;
+  text-transform:uppercase;font-weight:700;min-width:170px;text-align:center;
 }
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--line-2)}
+
+/* Fichas: una línea por tarea. */
+.cal-chip{
+  display:flex;align-items:center;gap:5px;min-width:0;width:100%;
+  font-size:11.5px;line-height:1.3;color:var(--ink-2);
+  background:var(--panel);border:1px solid var(--line);border-left:2px solid var(--muted);
+  padding:3px 5px;cursor:pointer;
+}
+.cal-chip:hover{border-color:var(--ink-2);color:var(--ink)}
+.cal-chip[draggable="true"]{cursor:grab}
+.cal-chip.dragging{opacity:.4}
+.cal-chip .cal-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+.cal-chip b{font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;flex:0 0 auto}
+.cal-code{font-family:var(--mono);font-size:8.5px;color:var(--muted);flex:0 0 auto}
+.cal-when{font-family:var(--mono);font-size:8.5px;color:var(--warn);flex:0 0 auto}
+.cal-chip.commit{border-left-color:var(--ink);color:var(--ink)}
+.cal-chip.one{border-left:3px solid var(--ink);background:var(--sel);color:var(--ink);font-weight:600}
+.cal-chip.late{border-left-color:var(--warn)}
+.cal-chip-deadline{border-left-color:var(--warn);color:var(--warn)}
+.cal-chip-deadline b{color:var(--warn)}
+.cal-chip-reminder{border-left-color:var(--ink-2);background:none}
+.cal-chip-review{border-left-color:var(--faint);background:none;color:var(--muted)}
+.cal-chip-done{background:none;border-color:var(--line-2);border-left-color:var(--line-2);color:var(--faint);text-decoration:line-through}
+.cal-check{width:11px;height:11px;flex:0 0 auto;border:1px solid var(--faint);background:none;padding:0}
+.cal-check:hover{border-color:var(--ink)}
+.cal-check.done{background:var(--ink);border-color:var(--ink)}
+.cal-add{
+  width:100%;background:none;border:1px dashed var(--line-2);padding:4px 6px;
+  font-size:11.5px;color:var(--ink);margin-top:6px;
+}
+.cal-add:focus{outline:none;border-style:solid;border-color:var(--ink)}
+.cal-add::placeholder{color:var(--faint)}
+.cal-free{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;color:var(--faint);text-transform:uppercase;padding:2px 1px}
+.drop{outline:2px solid var(--ink);outline-offset:-2px;background:var(--sel)}
+
+/* Semana. */
+.cal-week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--line-2);border:1px solid var(--line-2)}
+.cal-day{background:var(--bg);display:flex;flex-direction:column;min-height:280px;padding:0 6px 8px;min-width:0}
+.cal-day.past{background:var(--line-2)}
+.cal-day.past .cal-day-body{opacity:.7}
+.cal-day.today .cal-day-head{border-bottom-color:var(--ink)}
+.cal-day.today .cal-day-n{background:var(--ink);color:var(--bg);padding:0 5px}
+.cal-day.over .cal-day-head{border-bottom-color:var(--warn)}
+.cal-day-head{
+  display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;width:100%;
+  padding:9px 2px 7px;border-bottom:2px solid var(--line);margin-bottom:6px;text-align:left;
+}
+.cal-dow-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;font-weight:700;color:var(--muted)}
+.cal-day-n{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--ink)}
+.cal-load{font-family:var(--mono);font-size:9px;color:var(--muted);margin-left:auto}
+.cal-load.over{color:var(--warn);font-weight:700}
+.cal-deep{font-family:var(--mono);font-size:9px;color:var(--ink-2)}
+.cal-day-body{display:flex;flex-direction:column;gap:4px;flex:1}
+
+/* Mes. */
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--line-2);border:1px solid var(--line-2)}
 .cal-dow{
   font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--faint);
   text-align:center;padding:7px 0;background:var(--bg);text-transform:uppercase;
 }
 .cal-cell{
-  background:var(--bg);min-height:62px;padding:6px 7px;
-  display:flex;flex-direction:column;gap:4px;align-items:flex-start;
+  background:var(--bg);min-height:96px;padding:5px;min-width:0;cursor:pointer;
+  display:flex;flex-direction:column;gap:3px;
 }
 .cal-cell:hover{background:var(--sel)}
+.cal-cell.past{background:var(--line-2)}
 .cal-cell.void{background:var(--line-2);opacity:.35;cursor:default}
 .cal-cell.void:hover{background:var(--line-2)}
+.cal-cell.over{box-shadow:inset 0 2px 0 var(--warn)}
+.cal-cell.on{outline:2px solid var(--ink);outline-offset:-2px}
+.cal-cell-head{display:flex;align-items:center;gap:5px}
 .cal-num{font-family:var(--mono);font-size:11.5px;color:var(--ink-2)}
-.cal-cell.today .cal-num{
-  background:var(--ink);color:var(--bg);border-radius:2px;padding:0 5px;font-weight:600;
+.cal-cell.today .cal-num{background:var(--ink);color:var(--bg);padding:0 5px;font-weight:700}
+.cal-late .cal-num{color:var(--warn)}
+.cal-rem{font-size:10px;color:var(--ink-2)}
+.cal-donecount{font-family:var(--mono);font-size:8.5px;color:var(--faint);margin-left:auto}
+.cal-more{font-family:var(--mono);font-size:8.5px;color:var(--muted);letter-spacing:.06em}
+.cal-cell .cal-chip{font-size:10.5px;padding:2px 4px}
+.cal-cell .cal-check{display:none}
+
+/* Agenda y bandejas. */
+.cal-agenda-day{padding:2px 0 14px}
+.cal-agenda-day.over .sec-meta{color:var(--warn);font-weight:700}
+.cal-agenda-list{display:flex;flex-direction:column;gap:4px}
+.cal-agenda-list .cal-chip{font-size:13px;padding:6px 8px}
+.cal-agenda-list .cal-check{width:13px;height:13px}
+.cal-trays{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:22px}
+.cal-tray{border:1px solid var(--line);padding:12px 12px 10px;background:var(--bg)}
+.cal-tray.late{border-color:var(--warn)}
+.cal-tray .sec-head{margin-bottom:10px}
+.cal-tray-list{display:flex;flex-direction:column;gap:4px;max-height:320px;overflow-y:auto}
+.cal-legend{
+  display:flex;gap:8px 18px;flex-wrap:wrap;align-items:center;margin-top:20px;
+  font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--faint);text-transform:uppercase;
 }
-.cal-cell.on{outline:1px solid var(--ink);outline-offset:-1px}
-.cal-marks{display:flex;gap:3px;flex-wrap:wrap}
-.cal-dot{width:4px;height:4px;border-radius:50%;background:var(--ink-2)}
-.cal-dot.commit{background:var(--ink)}
-.cal-dot.wait{background:var(--faint)}
-.cal-late .cal-dot{background:var(--warn)}
-.cal-rem{font-size:10px;line-height:4px;color:var(--ink-2);margin-left:1px}
-.cal-rem-time{
-  font-family:var(--mono);font-size:11px;margin-right:10px;
-  font-variant-numeric:tabular-nums;color:var(--ink);
-}
+.cal-legend i{display:inline-block;width:14px;height:9px;border:1px solid var(--line);border-left:2px solid var(--muted);margin-right:6px;vertical-align:middle}
+.cal-legend i.commit{border-left-color:var(--ink)}
+.cal-legend i.dl{border-left-color:var(--warn)}
 
 /* -------------------------------- Revision ------------------------------- */
 
@@ -1249,6 +1376,58 @@ body.nav-collapsed .nav-brand{justify-content:center}
 
 .data-path{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:6px;word-break:break-all}
 
+/* -------------------------------- La ficha -------------------------------- */
+
+.ed-states{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--line);border:1px solid var(--line)}
+.ed-state{background:var(--bg);padding:8px 4px 7px;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
+.ed-state span{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;font-weight:700;color:var(--muted)}
+.ed-state small{font-size:10.5px;color:var(--faint)}
+.ed-state:hover span{color:var(--ink)}
+.ed-state.on{background:var(--ink)}
+.ed-state.on span,.ed-state.on small{color:var(--bg)}
+.ed-quick{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:12px 0 2px}
+.ed-quick .spacer{margin-left:auto}
+.ed-block{margin-top:20px;min-width:0}
+.ed-block-title{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.22em;font-weight:700;color:var(--ink);
+  border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:12px;
+}
+.ed-title{font-size:17px;font-weight:600;line-height:1.35}
+.ed-history{
+  display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  margin-top:20px;padding-top:10px;border-top:1px solid var(--line-2);font-size:12px;color:var(--muted);
+}
+
+/* --------------------------- Listas: más claridad -------------------------- */
+
+.list-summary{display:flex;gap:6px 18px;flex-wrap:wrap;margin:-20px 0 18px;font-size:12px;color:var(--muted)}
+.list-summary b{font-family:var(--mono);color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums;margin-right:3px}
+.list-summary .bad,.list-summary .bad b{color:var(--warn)}
+.list-sub{
+  font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--muted);
+  margin:14px 0 2px;padding-bottom:4px;border-bottom:1px solid var(--line-2);
+}
+.list-sub:first-child{margin-top:0}
+.chip-empty{opacity:.45}
+.tag-age{font-family:var(--mono);font-size:9.5px;color:var(--faint);letter-spacing:.06em}
+.someday-card{border:1px solid var(--line);border-left:3px solid var(--ink);padding:22px 24px;margin-top:4px;background:var(--panel)}
+.someday-age{font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;color:var(--muted)}
+.someday-title{font-size:26px;line-height:1.2;margin:10px 0 0;font-weight:700;letter-spacing:-.02em;word-break:break-word}
+
+/* ------------------------- Configuración de tarjetas ----------------------- */
+
+.cardcfg{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px;align-items:start}
+.cardcfg-fields{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-bottom:10px}
+.cardcfg-preview{position:sticky;top:20px}
+.cardcfg-stage{background:var(--bg);border:1px dashed var(--line);padding:14px 10px;margin-top:6px}
+.cardcfg-stage .card{cursor:default}
+
+.nav-grit{
+  font-family:var(--mono);font-size:9px;letter-spacing:.2em;font-weight:700;color:var(--ink);
+  padding:8px 8px 0;border-top:1px solid var(--line);text-transform:uppercase;
+}
+body.nav-collapsed .nav-grit{display:none}
+
 /* ------------------------------- Responsive ------------------------------ */
 
 @media (max-width:760px){
@@ -1260,7 +1439,7 @@ body.nav-collapsed .nav-brand{justify-content:center}
     scrollbar-width:none;
   }
   #nav::-webkit-scrollbar{display:none}
-  .nav-brand,.nav-foot,.nav-sep{display:none}
+  .nav-brand,.nav-foot,.nav-sep,.nav-grit{display:none}
   .nav-list{flex-direction:row;gap:4px;flex-wrap:nowrap}
   .nav-item{padding:5px 10px;border-left:none;border-bottom:2px solid transparent;white-space:nowrap}
   .nav-item.on{border-left-color:transparent;border-bottom-color:var(--ink)}
@@ -1271,6 +1450,17 @@ body.nav-collapsed .nav-brand{justify-content:center}
   .brand-name{font-size:18px}
   .focus-timer{font-size:42px}
   .row2{grid-template-columns:1fr}
+  .cardcfg{grid-template-columns:1fr}
+  .cardcfg-fields{grid-template-columns:1fr}
+  .cardcfg-preview{position:static}
+  .cal-week{grid-template-columns:1fr}
+  .cal-day{min-height:0}
+  .cal-cell{min-height:58px}
+  .cal-cell .cal-chip{display:none}
+  .cal-cell .cal-more{display:none}
+  .cal-month{min-width:0}
+  .ed-state small{display:none}
+  .ed-state span{font-size:8.5px;letter-spacing:.06em}
   .stats{grid-template-columns:1fr}
   /* Sin hover no hay acciones al vuelo: la fila se toca y se abre el editor. */
   .row-acts{display:none}
@@ -1285,7 +1475,7 @@ body.nav-collapsed .nav-brand{justify-content:center}
   .focus-inner.deep .focus-title{font-size:26px}
   .colcfg-row{flex-wrap:wrap}
   body.nav-collapsed #shell{grid-template-columns:1fr}
-  .card-acts{opacity:1}
+  .card-acts{position:static;opacity:1;pointer-events:auto;flex-wrap:wrap;gap:2px;border:none;border-top:1px solid var(--line-2);background:none;margin-top:8px;padding-top:6px}
   .gal-acts{opacity:1}
   .gallery{grid-template-columns:1fr}
   .board-name{font-size:20px}

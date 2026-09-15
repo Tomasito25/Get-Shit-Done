@@ -23,7 +23,7 @@ export function render() {
   const todas = S.noteList();
   const fijadas = todas.filter((t) => t.pinned).length;
 
-  add(wrap, pageHead('ANOTACIONES', V.notesLine(todas.length, fijadas)));
+  add(wrap, pageHead('ANOTACIONES', V.notesLine(todas.length, fijadas), V.gritNotes()));
   add(wrap, noteBar({ projectId: filtro.proyecto || null }));
 
   /* -------------------------------- Filtros ------------------------------- */

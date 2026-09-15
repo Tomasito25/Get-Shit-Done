@@ -63,6 +63,7 @@ function mount() {
 
 export function close() {
   stopTicker();
+  olvidarBloque();
   taskId = null;
   session = null;
   phase = 'idle';
@@ -87,6 +88,63 @@ export function requestExit() {
     return false;
   }
   close();
+  return true;
+}
+
+/* --------------------------- Bloque que sobrevive -------------------------- */
+
+/*
+ * Un bloque de trabajo profundo no se pierde por recargar o cerrar la pestaña:
+ * se apunta al empezar y se recupera al volver. Si ya pasó de largo su duración,
+ * se registra lo planificado —no las horas que estuvo la pestaña cerrada—.
+ */
+const CLAVE_BLOQUE = 'gsd:bloque';
+
+function guardarBloque() {
+  if (!session) return;
+  try {
+    localStorage.setItem(CLAVE_BLOQUE, JSON.stringify({
+      taskId, mode, limit: session.limit, startedAt: session.startedAt, planned: session.planned, done: session.done,
+    }));
+  } catch { /* sin almacenamiento: el bloque vive solo en esta pestaña */ }
+}
+
+function olvidarBloque() {
+  try { localStorage.removeItem(CLAVE_BLOQUE); } catch { /* nada que olvidar */ }
+}
+
+export async function resume() {
+  let b = null;
+  try { b = JSON.parse(localStorage.getItem(CLAVE_BLOQUE) || 'null'); } catch { b = null; }
+  if (!b || !b.taskId || !b.startedAt) return false;
+  const t = S.byId(b.taskId);
+  const pasado = Date.now() - b.startedAt;
+  if (!t || t.completed) { olvidarBloque(); return false; }
+
+  const limiteMs = b.limit === null ? null : b.limit * 1000;
+  if ((limiteMs !== null && pasado > limiteMs + 30 * 60000) || (limiteMs === null && pasado > 6 * 3600000)) {
+    olvidarBloque();
+    if (b.mode === 'deep' && limiteMs !== null) {
+      await S.logSession({
+        taskId: b.taskId, kind: 'deep', plannedMin: b.planned,
+        startedAt: new Date(b.startedAt).toISOString(), endedAt: new Date(b.startedAt + limiteMs).toISOString(), note: b.done || '',
+      });
+      toast(`Bloque de ${b.planned} min registrado. La página se cerró con él en marcha.`);
+    }
+    return false;
+  }
+
+  taskId = b.taskId;
+  mode = b.mode === 'deep' ? 'deep' : 'focus';
+  lastSession = null;
+  onExit = null;
+  session = { limit: b.limit, startedAt: b.startedAt, planned: b.planned || 0, done: b.done || '' };
+  phase = 'running';
+  mount();
+  stopTicker();
+  ticker = setInterval(tick, 1000);
+  tick();
+  toast('Bloque recuperado. El reloj siguió contando.');
   return true;
 }
 
@@ -120,6 +178,7 @@ function startSession(limitMinutes, done = '') {
     done,
   };
   phase = 'running';
+  guardarBloque();
   render();
   stopTicker();
   ticker = setInterval(tick, 1000);
@@ -134,6 +193,7 @@ async function endSession({ abandoned = false } = {}) {
   const fin = new Date().toISOString();
   const planned = session.planned;
   stopTicker();
+  olvidarBloque();
   document.title = 'GSD';
 
   if (mode === 'deep') {
@@ -216,6 +276,7 @@ function mainView(t) {
     add(inner,
       h('div', { class: 'focus-timer', dataset: { timer: '1' }, text: '00:00' }),
       h('div', { class: 'focus-note', text: session.limit === null ? 'SIN LÍMITE' : `BLOQUE DE ${session.limit / 60} MIN` }),
+      h('div', { class: 'micro', style: 'margin-top:8px', text: mode === 'deep' ? 'THE URGE TO QUIT IS THE WORKOUT.' : 'STAY ON IT.' }),
       session.done ? h('div', { class: 'focus-done-def' },
         h('span', { class: 'focus-done-label', text: 'TERMINAR ES' }),
         h('span', { text: session.done })) : null,
@@ -265,6 +326,7 @@ function ritual(t) {
     h('div', { class: 'focus-label', style: 'margin-bottom:10px', text: 'DEFINE TERMINADO' }),
     def,
     h('div', { class: 'micro', style: 'margin-top:10px', text: 'SIN DEFINICIÓN DE TERMINADO, TRABAJAR ES SOLO ESTAR SENTADO.' }),
+    h('div', { class: 'micro', style: 'margin-top:6px;color:var(--ink)', text: 'CALLOUS THE MIND. ONE BLOCK AT A TIME.' }),
     h('div', { class: 'focus-actions' },
       h('button', { class: 'btn btn-primary', type: 'button', text: 'EMPEZAR EL BLOQUE', onclick: empezar })),
     h('div', { class: 'focus-exit' },
