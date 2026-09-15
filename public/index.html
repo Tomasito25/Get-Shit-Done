@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es" data-theme="system">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>GSD</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<div id="shell">
+  <aside id="nav" aria-label="Navegación">
+    <div class="nav-brand">
+      <button class="brand-mark" id="btn-nav" type="button" title="Plegar la barra (\)" aria-label="Plegar la barra lateral"></button>
+      <span class="brand-name">GSD</span>
+      <span class="brand-text">GET SHIT<br>DONE</span>
+    </div>
+    <nav class="nav-list" id="nav-list"></nav>
+    <div class="nav-foot">
+      <button class="nav-mini" id="btn-theme" type="button" title="Configuración">AJUSTES</button>
+      <button class="nav-mini" id="btn-help" type="button" title="Atajos de teclado">ATAJOS</button>
+    </div>
+  </aside>
+
+  <main id="main" tabindex="-1"></main>
+</div>
+
+<div id="focus-layer" class="layer" hidden></div>
+<div id="overlay" class="layer" hidden></div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

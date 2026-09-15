@@ -1,0 +1,13 @@
+# Tus datos. No salen de tu equipo, y menos aún a un repositorio.
+# Aquí viven las tareas, los proyectos, las copias diarias y los avisos ya enviados.
+/data/
+
+# Restos de ejecución
+*.log
+*.pid
+
+# Basura del sistema de ficheros
+.DS_Store
+Thumbs.db
+*~
+.*.swp

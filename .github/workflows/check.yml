@@ -1,0 +1,18 @@
+# Lo único que se automatiza: que el código sea sintácticamente válido.
+# No hay dependencias que instalar ni nada que construir.
+name: comprobación
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  sintaxis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: ./check.sh

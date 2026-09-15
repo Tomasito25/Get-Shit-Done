@@ -1,0 +1,30 @@
+# Lanzador de escritorio para GNOME/KDE/XFCE.
+#
+#   sed "s|RUTA_A_GSD|$PWD|g" GSD.desktop.example > ~/.local/share/applications/gsd.desktop
+#   chmod +x ~/.local/share/applications/gsd.desktop
+#
+# Para tenerlo también en el escritorio, copia ese mismo fichero a ~/Escritorio
+# (o ~/Desktop) y márcalo como de confianza si tu entorno lo pide.
+
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=GSD
+GenericName=Get Shit Done
+Comment=Captura, decide y ejecuta. Local, sin cuentas, sin excusas.
+Exec=RUTA_A_GSD/start.sh
+Path=RUTA_A_GSD
+Icon=RUTA_A_GSD/public/icon.svg
+Terminal=false
+StartupNotify=false
+Categories=Office;ProjectManagement;
+Keywords=gsd;gtd;tareas;productividad;focus;inbox;
+Actions=stop;status;
+
+[Desktop Action stop]
+Name=Detener el servidor
+Exec=RUTA_A_GSD/start.sh stop
+
+[Desktop Action status]
+Name=¿Está en marcha?
+Exec=RUTA_A_GSD/start.sh status
