@@ -27,16 +27,28 @@ export function render() {
 
   const st = sync.status();
   const line = h('div', { class: 'notice-body' });
+  const carpeta = h('div', { class: 'notice-body data-path' });
   const paint = (ok, when) => {
     line.textContent = ok
-      ? `Copia en disco: gsd/data/gsd-data.json${when ? ` · guardada ${when.toLocaleTimeString('es-ES')}` : ''}`
+      ? `Copia en disco activa${when ? ` · guardada a las ${when.toLocaleTimeString('es-ES')}` : ''}.`
       : 'Sin copia en disco. Los datos viven solo en este navegador: exporta un JSON.';
   };
   paint(st.available, st.lastSaved);
 
+  // La carpeta real, en el formato del sistema: C:\… en Windows, /home/… en Linux.
+  fetch('/api/health', { cache: 'no-store' })
+    .then((r) => r.json())
+    .then((salud) => {
+      if (!salud || !salud.dataDir) return;
+      carpeta.textContent = `Carpeta: ${salud.dataDir}`;
+      carpeta.title = 'Aquí están tus datos y las copias diarias. Cópiala para llevarte todo.';
+    })
+    .catch(() => {});
+
   add(wrap, h('div', { class: `notice${st.available ? '' : ' notice-warn'}` },
     h('div', { class: 'notice-title', text: 'RESPALDO AUTOMÁTICO' }),
     line,
+    carpeta,
     h('div', { class: 'notice-acts' },
       h('button', {
         class: 'btn btn-sm', type: 'button', text: 'GUARDAR AHORA',

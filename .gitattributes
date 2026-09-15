@@ -1,0 +1,12 @@
+# Finales de línea fijos, clones desde Linux o desde Windows por igual.
+* text=auto eol=lf
+
+# Windows: CRLF, que es lo que esperan cmd y PowerShell.
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Linux: con CRLF, bash no arranca ("bad interpreter").
+*.sh  text eol=lf
+
+*.ico binary
+*.png binary

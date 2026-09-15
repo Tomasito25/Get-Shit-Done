@@ -192,14 +192,16 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+  if ((e.ctrlKey || e.metaKey) && !(e.getModifierState && e.getModifierState('AltGraph')) && e.key.toLowerCase() === 'k') {
     e.preventDefault();
     if (anyOpen()) closeTop();
     search.open();
     return;
   }
 
-  if (isTyping() || anyOpen() || e.ctrlKey || e.metaKey || e.altKey) return;
+  // En Windows, AltGr llega como Ctrl+Alt: sin esto, «\» (AltGr+º) no haría nada.
+  const altGr = e.getModifierState && e.getModifierState('AltGraph');
+  if (isTyping() || anyOpen() || ((e.ctrlKey || e.metaKey || e.altKey) && !altGr)) return;
   if (viewkeys.run(e)) { e.preventDefault(); return; }
 
   const k = e.key.toLowerCase();

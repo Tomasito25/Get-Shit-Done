@@ -18,12 +18,31 @@ const fsp = require('fs/promises');
 const path = require('path');
 const { execFile } = require('child_process');
 
+const WINDOWS = process.platform === 'win32';
+
 const ROOT = __dirname;
 const PUBLIC_DIR = path.join(ROOT, 'public');
-const DATA_DIR = path.join(ROOT, 'data');
+/** Por defecto, junto a la aplicación. GSD_DATA_DIR la lleva a otro sitio. */
+const DATA_DIR = process.env.GSD_DATA_DIR ? path.resolve(process.env.GSD_DATA_DIR) : path.join(ROOT, 'data');
 const BACKUP_DIR = path.join(DATA_DIR, 'backups');
 const SNAPSHOT_FILE = path.join(DATA_DIR, 'gsd-data.json');
-const PORT = Number(process.env.PORT || 8790);
+const argumento = (nombre) => { const i = process.argv.indexOf(nombre); return i > -1 ? process.argv[i + 1] : undefined; };
+
+/** `node server.js --port 9000`. Ir en la línea de órdenes deja distinguir dos instancias. */
+const PORT = Number(argumento('--port') || process.env.PORT || 8790);
+
+/*
+ * `--log fichero`: toda la salida del servidor va a ese fichero. En Windows el
+ * arrancador lo lanza sin consola y sin heredar la de quien lo abrió (si la
+ * heredara, esa ventana no podría terminar hasta que se cerrase el servidor).
+ */
+const LOG_FILE = argumento('--log');
+if (LOG_FILE) {
+  const flujo = fs.createWriteStream(LOG_FILE, { flags: 'a' });
+  const escribir = (trozo) => flujo.write(trozo);
+  process.stdout.write = escribir;
+  process.stderr.write = escribir;
+}
 const HOST = '127.0.0.1';
 const MAX_BODY = 32 * 1024 * 1024; // 32 MB
 const KEEP_BACKUPS = 30;
@@ -93,10 +112,28 @@ async function atomicWrite(file, text) {
     await fh.close();
   }
   try {
-    await fsp.rename(tmp, file);
+    await renameWithRetry(tmp, file);
   } catch (err) {
     await fsp.unlink(tmp).catch(() => {});
     throw err;
+  }
+}
+
+/**
+ * En Windows, un antivirus o el indexador pueden tener el fichero abierto un
+ * instante y el rename falla con EPERM/EBUSY. Se reintenta con esperas
+ * crecientes (25 ms … 1,6 s) antes de dar el guardado por fallido.
+ */
+async function renameWithRetry(from, to) {
+  for (let intento = 0; ; intento += 1) {
+    try {
+      await fsp.rename(from, to);
+      return;
+    } catch (err) {
+      const pasajero = ['EPERM', 'EBUSY', 'EACCES'].includes(err && err.code);
+      if (!pasajero || intento >= 6) throw err;
+      await new Promise((r) => setTimeout(r, 25 * 2 ** intento));
+    }
   }
 }
 
@@ -212,19 +249,62 @@ async function handleBackupGet(res, nombre) {
 
 /*
  * Los avisos los dispara este servidor, no el navegador: así llegan como
- * notificación de escritorio aunque Zen esté cerrado, mientras GSD esté en
- * marcha. Se apuntan los ya enviados para no repetir nunca el mismo.
+ * notificación de escritorio aunque el navegador esté cerrado, mientras GSD
+ * esté en marcha. Se apuntan los ya enviados para no repetir nunca el mismo.
+ *
+ *   Linux    notify-send
+ *   Windows  notificación nativa, lanzada con Windows PowerShell
+ *
+ * Si el sistema no puede, /api/health lo dice y avisa la propia página.
  */
 
 let notifyAvailable = null;
 
+/*
+ * Notificación de Windows 10/11 sin instalar nada. El título y el texto viajan
+ * en variables de entorno, nunca pegados dentro del script: así ningún texto
+ * de una tarea puede convertirse en código. Se usa el identificador de Windows
+ * PowerShell porque Windows solo muestra notificaciones de aplicaciones que
+ * conoce, y esa viene con el sistema.
+ */
+const TOAST_SCRIPT = [
+  "$ErrorActionPreference = 'Stop'",
+  '[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null',
+  '$xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)',
+  "$textos = $xml.GetElementsByTagName('text')",
+  '$textos.Item(0).AppendChild($xml.CreateTextNode($env:GSD_AVISO_TITULO)) | Out-Null',
+  '$textos.Item(1).AppendChild($xml.CreateTextNode($env:GSD_AVISO_TEXTO)) | Out-Null',
+  '$aviso = [Windows.UI.Notifications.ToastNotification]::new($xml)',
+  "$app = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe'",
+  '[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($app).Show($aviso)',
+].join('\n');
+
+const TOAST_CHECK = [
+  "$ErrorActionPreference = 'Stop'",
+  '[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null',
+].join('\n');
+
+/** PowerShell acepta el script en UTF-16LE y base64: sin problemas de comillas. */
+const encodePs = (script) => Buffer.from(script, 'utf16le').toString('base64');
+
+function powershell(script, env = {}, timeout = 20000) {
+  return new Promise((resolve) => {
+    execFile('powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encodePs(script)],
+      { timeout, windowsHide: true, env: { ...process.env, ...env } },
+      (err) => resolve(!err));
+  });
+}
+
 function checkNotify() {
+  if (WINDOWS) return powershell(TOAST_CHECK);
   return new Promise((resolve) => {
     execFile('notify-send', ['--version'], { timeout: 3000 }, (err) => resolve(!err));
   });
 }
 
 function notify(title, body, urgente) {
+  if (WINDOWS) return powershell(TOAST_SCRIPT, { GSD_AVISO_TITULO: title, GSD_AVISO_TEXTO: body });
   return new Promise((resolve) => {
     const args = ['-a', 'GSD', '-u', urgente ? 'critical' : 'normal', '-i', ICON_FILE, title, body];
     execFile('notify-send', args, { timeout: 5000 }, (err) => resolve(!err));
@@ -383,7 +463,7 @@ async function route(req, res) {
   }
   if (url.pathname === '/api/health') {
     if (notifyAvailable === null) notifyAvailable = await checkNotify();
-    return sendJson(res, 200, { ok: true, notify: notifyAvailable });
+    return sendJson(res, 200, { ok: true, notify: notifyAvailable, dataDir: DATA_DIR, platform: process.platform });
   }
   if (req.method !== 'GET') return send(res, 405, 'Metodo no permitido');
   return serveStatic(req, res, url.pathname);
@@ -420,4 +500,5 @@ server.listen(PORT, HOST, () => {
   setInterval(() => { checkReminders().catch(() => {}); }, REMINDER_EVERY_MS);
   setTimeout(() => { checkReminders().catch(() => {}); }, 3000);
   process.stdout.write(`GSD escuchando en http://${HOST}:${PORT}\n`);
+  process.stdout.write(`Datos en ${DATA_DIR}\n`);
 });

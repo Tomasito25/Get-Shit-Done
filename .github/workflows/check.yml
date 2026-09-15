@@ -1,18 +1,28 @@
-# Lo único que se automatiza: que el código sea sintácticamente válido.
+# Se prueba en Linux y en Windows de verdad: sintaxis, servidor y arrancador.
 # No hay dependencias que instalar ni nada que construir.
-name: comprobación
+name: pruebas
 
 on:
   push:
-    branches: [main]
   pull_request:
 
 jobs:
-  sintaxis:
-    runs-on: ubuntu-latest
+  pruebas:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: ['18', '22']
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }} · Node ${{ matrix.node }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      - run: ./check.sh
+          node-version: ${{ matrix.node }}
+      - name: Sintaxis y formato
+        run: node dev/check.mjs
+      - name: Servidor
+        run: node dev/smoke.mjs
+      - name: Arrancador
+        run: node dev/launcher.mjs
