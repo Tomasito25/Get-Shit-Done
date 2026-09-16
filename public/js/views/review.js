@@ -75,7 +75,7 @@ const STEPS = [
       const sin = S.projectsWithoutOutcome().length;
       const pausados = S.pausedWithoutDate().length;
       const partes = [];
-      if (parados) partes.push(`${plural(parados, 'parado', 'parados')}`);
+      if (parados) partes.push(`${plural(parados, 'parado de verdad', 'parados de verdad')}`);
       if (sin) partes.push(`${sin} sin resultado`);
       if (pausados) partes.push(`${pausados} en pausa sin fecha`);
       return partes.length ? partes.join(' · ') : `${S.activeProjects().length} proyectos, todos en marcha`;
@@ -338,10 +338,10 @@ function panelProyectos() {
   const pausados = S.pausedWithoutDate();
   const caja = h('div', {});
 
-  add(caja, h('div', { class: 'micro', style: 'margin-bottom:10px', text: 'UN PROYECTO SIN SIGUIENTE ACCIÓN NO ES UN PLAN: ES UN DESEO.' }));
+  add(caja, h('div', { class: 'micro', style: 'margin-bottom:10px', text: 'UN PROYECTO SIN SIGUIENTE ACCIÓN NO ES UN PLAN: ES UN DESEO. LO PROGRAMADO Y LO QUE ESPERA A OTRO NO ESTÁ PARADO.' }));
 
   if (parados.length) {
-    add(caja, h('div', { class: 'label', text: 'Sin siguiente acción — escríbela aquí mismo' }));
+    add(caja, h('div', { class: 'label', text: 'Parados — escribe aquí mismo su siguiente acción' }));
     for (const p of parados) {
       const campo = h('input', {
         class: 'input', type: 'text', placeholder: 'La siguiente acción física y concreta',
@@ -358,11 +358,18 @@ function panelProyectos() {
         await S.updateTask(t.id, { projectId: p.id });
         await S.makeNext(t.id);
       });
+      const est = S.projectStatus(p.id);
+      const motivo = {
+        inbox: `${est.count} ${est.count === 1 ? 'cosa sin aclarar' : 'cosas sin aclarar'}: decide qué son`,
+        someday: `${est.count} ${est.count === 1 ? 'idea aparcada' : 'ideas aparcadas'}: activa una`,
+        none: 'sin ninguna acción',
+      }[est.kind] || 'sin siguiente acción';
       add(caja, h('div', { class: 'rv-proj' },
         h('button', {
           class: 'rv-proj-name', type: 'button',
           onclick: () => { location.hash = `#/proyectos/${p.id}`; },
         }, h('span', { class: 'proj-code', text: p.code || '—' }), p.name),
+        h('div', { class: 'rv-desc', style: 'margin:-4px 0 6px', text: motivo }),
         campo));
     }
   }

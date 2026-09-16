@@ -53,12 +53,15 @@ export function list() {
   return wrap;
 }
 
+/** Parado de verdad: sin acción, sin fecha y sin nadie a quien esperar. */
+const parado = (p) => ['none', 'inbox', 'someday'].includes(S.projectStatus(p.id).kind);
+
 /** Primero lo que no avanza, luego lo que no sabe cómo termina, luego código. */
 function ordenar(proyectos) {
   const numero = (p) => Number((p.code || 'P0').slice(1));
   return [...proyectos].sort((a, b) => {
-    const pa = S.projectNext(a.id) ? 1 : 0;
-    const pb = S.projectNext(b.id) ? 1 : 0;
+    const pa = parado(a) ? 0 : 1;
+    const pb = parado(b) ? 0 : 1;
     if (pa !== pb) return pa - pb;
     if (!a.outcome !== !b.outcome) return a.outcome ? 1 : -1;
     return numero(a) - numero(b);
@@ -304,7 +307,8 @@ function tarjeta(p) {
   const hechas = todas.filter((t) => t.completed).length;
   const total = abiertas.length + hechas;
   const pct = total ? Math.round((hechas / total) * 100) : 0;
-  const siguiente = S.projectNext(p.id);
+  const est = S.projectStatus(p.id);
+  const atascado = parado(p);
   const esperando = abiertas.filter((t) => t.status === S.STATUS.WAITING).length;
   const arrastradas = abiertas.filter((t) => t.isCommitment && S.isOverdue(t)).length;
   const tope = abiertas.filter((t) => t.deadline).sort((a, b) => a.deadline.localeCompare(b.deadline))[0] || null;
@@ -313,7 +317,7 @@ function tarjeta(p) {
   // Añadir la siguiente acción sin entrar: lo que desatasca un proyecto parado.
   const campo = h('input', {
     class: 'gal-add', type: 'text',
-    placeholder: siguiente ? '+ otra acción' : '+ define la siguiente acción',
+    placeholder: est.kind === 'now' ? '+ otra acción' : '+ escribe la siguiente acción',
     autocomplete: 'off', dataset: { keepFocus: `gal-add-${p.id}` },
   });
   campo.addEventListener('keydown', async (e) => {
@@ -328,7 +332,7 @@ function tarjeta(p) {
     await S.makeNext(nueva.id);
   });
 
-  return h('article', { class: `gal${siguiente ? '' : ' gal-stall'}${p.outcome ? '' : ' gal-noout'}` },
+  return h('article', { class: `gal${atascado ? ' gal-stall' : ''}${p.outcome ? '' : ' gal-noout'}` },
     h('div', { class: 'gal-head' },
       h('button', { class: 'gal-name', type: 'button', onclick: abrir, title: 'Abrir el tablero' },
         h('span', { class: 'proj-code', text: p.code || '—' }), p.name),
@@ -341,11 +345,11 @@ function tarjeta(p) {
         onclick: () => openProjectForm(p),
       }),
     h('div', { class: 'gal-bar' }, h('span', { style: `width:${pct}%` })),
-    siguiente
-      ? h('button', { class: 'gal-next', type: 'button', onclick: abrir },
-        h('span', { class: 'proj-next-label', text: 'SIGUE' }),
-        h('span', { class: 'gal-next-t', text: siguiente.title }))
-      : h('div', { class: 'gal-next gal-warn', text: 'SIN SIGUIENTE ACCIÓN' }),
+    est.task
+      ? h('button', { class: 'gal-next', type: 'button', onclick: abrir, title: 'Abrir el tablero' },
+        h('span', { class: `proj-next-label${atascado ? ' gal-warn' : ''}`, text: S.projectStatusLabel(est) }),
+        h('span', { class: 'gal-next-t', text: est.task.title }))
+      : h('div', { class: 'gal-next gal-warn', text: 'SIN NINGUNA ACCIÓN — ESCRÍBELA ABAJO' }),
     h('div', { class: 'gal-foot' },
       h('span', { text: `${abiertas.length} abiertas` }),
       hechas ? h('span', { text: `${hechas} hechas` }) : null,

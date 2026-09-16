@@ -242,52 +242,168 @@ document.addEventListener('keydown', (e) => {
 
 /* ---------------------------------- Ayuda -------------------------------- */
 
-const KEYS = [
-  ['N', 'Nueva tarea (captura rápida)'],
-  ['T', 'Hoy · bandeja y compromisos'],
-  ['B', 'Tablero'],
-  ['I', 'Aclarar la bandeja'],
-  ['F', 'Enfoque sobre lo único'],
-  ['D', 'Trabajo profundo'],
-  ['O', 'Elegir lo único'],
-  ['P', 'Proyectos'],
-  ['W', 'En espera'],
-  ['S', 'Algún día'],
-  ['A', 'Anotaciones · información, no trabajo'],
-  ['C', 'Calendario'],
-  ['R', 'Revisión semanal'],
-  ['\\', 'Plegar la barra lateral'],
-  ['/', 'Buscar'],
-  ['Ctrl K', 'Buscar'],
-  ['↑ ↓ · J K', 'Mover el cursor por la lista'],
-  ['Espacio', 'Completar la tarea del cursor'],
-  ['Enter', 'Abrir / confirmar'],
-  ['M', 'Mover de columna la tarjeta con el foco'],
-  ['0 – 6', 'Aclarar la bandeja · decidir algún día'],
-  ['← →', 'Calendario: periodo anterior / siguiente'],
-  ['Esc', 'Salir'],
+/*
+ * El menú de atajos. Agrupado por lo que estás haciendo, no por orden
+ * alfabético, con buscador —cuando no recuerdas la tecla recuerdas la palabra—
+ * y con los atajos de pantalla pulsables: si estás aquí buscándolo, ve ya.
+ */
+const ATAJOS = [
+  {
+    grupo: 'IR A UNA PANTALLA',
+    items: [
+      ['T', 'Hoy: qué hago ahora', '#/hoy'],
+      ['B', 'Tablero', '#/tablero'],
+      ['P', 'Proyectos', '#/proyectos'],
+      ['I', 'Bandeja: aclarar lo capturado', '#/inbox'],
+      ['W', 'En espera: lo que depende de otros', '#/waiting'],
+      ['S', 'Algún día', '#/someday'],
+      ['A', 'Anotaciones', '#/notas'],
+      ['C', 'Calendario', '#/calendario'],
+      ['R', 'Revisión semanal', '#/review'],
+    ],
+  },
+  {
+    grupo: 'HACER',
+    items: [
+      ['N', 'Capturar algo nuevo, sin salir de donde estás'],
+      ['F', 'Enfoque: una tarea a pantalla completa'],
+      ['D', 'Trabajo profundo: bloque protegido'],
+      ['O', 'Elegir lo único del día'],
+    ],
+  },
+  {
+    grupo: 'EN LAS LISTAS',
+    items: [
+      ['↑ ↓', 'Moverse por la lista'],
+      ['J K', 'Lo mismo, sin soltar la fila del teclado'],
+      ['Espacio', 'Completar la tarea marcada (se puede deshacer)'],
+      ['Enter', 'Abrir la ficha de la tarea'],
+      ['M', 'Mover de columna la tarjeta con el foco'],
+    ],
+  },
+  {
+    grupo: 'DECIDIR',
+    items: [
+      ['0 – 6', 'Aclarar la bandeja: hacerla, eliminar, anotar, algún día, delegar, programar, siguiente acción'],
+      ['1 – 6', 'Algún día, decidiendo una a una'],
+      ['Esc', 'Salir de lo que estés: capa, aclarado o decisión'],
+    ],
+  },
+  {
+    grupo: 'SIN TECLA, PERO ESTÁ AQUÍ',
+    items: [
+      ['·', 'Posponer: en la fila de la tarea, o en su ficha'],
+      ['·', 'Delegar: en la ficha, botón EN ESPERA (pide a quién)'],
+      ['·', 'Duplicar una tarea: en su ficha'],
+      ['·', 'Convertir en anotación: en la ficha, ES UNA ANOTACIÓN'],
+      ['·', 'Fijar una anotación para verla en HOY: el rombo ◇'],
+      ['·', 'Pausar un proyecto: en su tarjeta o en su tablero'],
+      ['·', 'Mover un proyecto de carpeta: botón CARPETA de su tarjeta'],
+      ['·', 'Cambiar un día en el calendario: arrastrar la tarea'],
+      ['·', 'Qué enseñan las tarjetas: CONFIGURACIÓN → TARJETAS'],
+      ['·', 'Renombrar columnas o poner un tope: botón COLUMNAS'],
+    ],
+  },
+  {
+    grupo: 'LA PANTALLA',
+    items: [
+      ['/', 'Buscar en todo'],
+      ['Ctrl K', 'Buscar en todo'],
+      ['\\', 'Plegar o desplegar la barra lateral'],
+      ['← →', 'Calendario: semana o mes anterior y siguiente'],
+      ['?', 'Esta ayuda'],
+    ],
+  },
 ];
 
 /** La sintaxis de captura, junto a los atajos: se aprende una vez. */
 const SINTAXIS = [
-  ['@casa', 'contexto'],
-  ['#P04', 'proyecto por código, o por nombre (#fisica); lo crea si no existe'],
+  ['@casa', 'contexto: dónde o con qué puedes hacerlo'],
+  ['#P04', 'proyecto, por código o por nombre (#mudanza); lo crea si no existe'],
   ['!mañana', 'cuándo lo haces — hoy · mañana · lun · +3d · 12/09'],
-  ['^20/09', 'fecha tope — el día en que deja de servir'],
+  ['^20/09', 'fecha tope: el día en que deja de servir'],
   ['%18:00', 'aviso — %9 · %mañana-9 · %lun-18:30'],
   ['*lun,jue', 'repetición — diario · 3d · lun,jue · mes-1'],
   ['!!', 'no negociar: compromiso del día'],
 ];
 
+const EJEMPLOS = [
+  'Comprar cajas @calle !mañana',
+  'Enviar el borrador #P04 ^20/09 %mañana-9',
+  'Sacar la basura *lun,mie,vie',
+];
+
+const sinTildes = (x) => String(x).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
 function openHelp() {
+  const lista = h('div', { class: 'help-cols' });
+  const sintaxis = h('div', { class: 'help-syntax' });
+  const vacio = h('div', { class: 'empty', text: 'Nada con esa palabra. Prueba con: hoy, aviso, proyecto, columna, anotación.' });
+  vacio.hidden = true;
+
+  const pintar = (q = '') => {
+    const busca = sinTildes(q.trim());
+    const encaja = (k, d) => !busca || sinTildes(`${k} ${d}`).includes(busca);
+    lista.textContent = '';
+    let hay = 0;
+
+    for (const { grupo, items } of ATAJOS) {
+      const filas = items.filter(([k, d]) => encaja(k, d));
+      if (!filas.length) continue;
+      hay += filas.length;
+      add(lista, h('section', { class: 'help-group' },
+        h('div', { class: 'help-group-title', text: grupo }),
+        filas.map(([k, d, hash]) => {
+          const fila = h(hash ? 'button' : 'div', {
+            class: `help-row${hash ? ' link' : ''}`,
+            type: hash ? 'button' : null,
+            title: hash ? 'Ir ahí ahora' : null,
+            onclick: hash ? () => { closeTop(); location.hash = hash; } : null,
+          }, h('kbd', { text: k }), h('span', { text: d }));
+          return fila;
+        })));
+    }
+
+    const marcas = SINTAXIS.filter(([k, d]) => encaja(k, d));
+    sintaxis.textContent = '';
+    if (marcas.length) {
+      hay += marcas.length;
+      add(sintaxis,
+        h('div', { class: 'help-group-title', text: 'ESCRIBIR AL CAPTURAR' }),
+        h('div', { class: 'help-syntax-grid' }, marcas.map(([k, d]) => h('div', { class: 'help-row' },
+          h('kbd', { text: k }), h('span', { text: d })))),
+        !busca
+          ? h('div', { class: 'help-examples' }, EJEMPLOS.map((e) => h('code', { text: e })))
+          : null,
+        !busca
+          ? h('div', { class: 'micro', style: 'margin-top:10px', text: 'NO HACE FALTA APRENDÉRSELO: AL ESCRIBIR UNA MARCA SALEN LAS OPCIONES.' })
+          : null);
+    }
+    vacio.hidden = hay > 0;
+  };
+
+  const busca = h('input', {
+    class: 'help-search', type: 'search', placeholder: 'Buscar: «posponer», «calendario», «aviso»…',
+    autocomplete: 'off', 'data-autofocus': '',
+  });
+  busca.addEventListener('input', () => pintar(busca.value));
+  busca.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && busca.value) { e.stopPropagation(); busca.value = ''; pintar(); }
+  });
+
+  pintar();
+
   openSheet(sheet({
     title: 'Atajos y captura',
-    body: h('div', {},
-      h('div', { class: 'keys' }, KEYS.map(([k, d]) => [h('kbd', { text: k }), h('span', { text: d })])),
-      h('div', { class: 'sec-head', style: 'margin-top:26px' },
-        h('div', { class: 'sec-title', text: 'ESCRIBIR AL CAPTURAR' })),
-      h('div', { class: 'keys' }, SINTAXIS.map(([k, d]) => [h('kbd', { text: k }), h('span', { text: d })])),
-      h('div', { class: 'micro', style: 'margin-top:16px', text: 'SIN DETALLES VA AL INBOX. CON DETALLES, YA ESTÁ DECIDIDA.' })),
+    wide: true,
+    body: h('div', { class: 'help' },
+      busca,
+      lista,
+      vacio,
+      sintaxis,
+      h('div', { class: 'help-foot' },
+        h('span', { text: 'Dentro de Enfoque no hay navegación: solo trabajar o terminar.' }),
+        h('span', { text: 'La ficha de una tarea se guarda sola; ESC la cierra.' }))),
   }));
 }
 

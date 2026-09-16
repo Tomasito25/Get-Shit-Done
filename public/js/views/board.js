@@ -18,6 +18,7 @@ import * as V from '../voice.js';
 import * as focus from '../focus.js';
 import { openProjectForm, openPauseSheet, openMoveToFolder } from './projects.js';
 import { projectStrip } from './notes.js';
+import * as inbox from './inbox.js';
 import {
   pageHead, openEditor, askDelete, askOneThing, askCommit, openSheet, closeTop, sheet, deadlineTag,
   completeToggle, openDelegate, confirmSheet,
@@ -404,7 +405,9 @@ export function render(params = {}) {
           h('span', {}, h('b', { text: `${pct}%` }), ' completado'),
           h('span', {}, h('b', { text: String(abiertas) }), ' abiertas'),
           h('span', {}, h('b', { text: String(hechas) }), ' hechas'))),
-      h('p', { class: 'page-grit', text: S.projectNext(proyecto.id) ? V.gritBoard({ ...cuentas, over: exceso }) : V.gritProjects({ stalled: 1 }) })));
+      h('p', { class: 'page-grit', text: ['none', 'inbox', 'someday'].includes(S.projectStatus(proyecto.id).kind)
+        ? V.gritProjects({ stalled: 1 })
+        : V.gritBoard({ ...cuentas, over: exceso }) })));
   } else {
     add(wrap, pageHead('TABLERO', V.boardLine(cuentas), V.gritBoard({ ...cuentas, over: exceso })));
     add(wrap, resumen(hoyIds));
@@ -466,16 +469,21 @@ export function render(params = {}) {
   if (proyecto) add(wrap, projectStrip(proyecto.id));
 
   if (proyecto) {
-    const siguiente = S.projectNext(proyecto.id);
+    const est = S.projectStatus(proyecto.id);
     add(wrap, h('div', { class: 'board-foot' },
-      siguiente
-        ? h('div', {},
-          h('span', { class: 'proj-next-label', style: 'margin-right:10px', text: 'SIGUIENTE ACCIÓN' }),
-          h('span', { text: siguiente.title }))
-        : h('div', { class: 'proj-stall', text: 'Sin siguiente acción. Un proyecto sin siguiente acción es un deseo.' }),
+      estadoProyecto(est),
       h('div', { style: 'display:flex;gap:6px;flex-wrap:wrap;margin-left:auto' },
-        siguiente
-          ? h('button', { class: 'btn btn-sm btn-primary', type: 'button', text: 'EMPEZAR', onclick: () => focus.open(siguiente.id) })
+        est.kind === 'now'
+          ? h('button', { class: 'btn btn-sm btn-primary', type: 'button', text: 'EMPEZAR', onclick: () => focus.open(est.task.id) })
+          : null,
+        est.kind === 'scheduled'
+          ? h('button', { class: 'btn btn-sm btn-primary', type: 'button', text: 'TRAERLA A HOY', onclick: () => askCommit(est.task.id) })
+          : null,
+        est.kind === 'waiting'
+          ? h('button', { class: 'btn btn-sm', type: 'button', text: 'SEGUIMIENTO', onclick: () => openDelegate(est.task.id) })
+          : null,
+        est.kind === 'inbox'
+          ? h('button', { class: 'btn btn-sm btn-primary', type: 'button', text: `ACLARAR (${est.count})`, onclick: () => inbox.startProcessing(est.task.id) })
           : null,
         h('button', { class: 'btn btn-sm', type: 'button', text: 'EDITAR', onclick: () => openProjectForm(proyecto) }),
         proyecto.status === 'paused'
@@ -524,6 +532,39 @@ function resumen(hoyIds) {
   ];
   return h('div', { class: 'board-summary' }, partes.map(([l, n, mal]) => h('span', { class: mal ? 'bad' : '' },
     h('b', { text: String(n) }), ` ${l}`)));
+}
+
+/**
+ * Qué mueve este proyecto. Si no lo mueve nada, dice exactamente qué falta:
+ * no es lo mismo no tener nada que tenerlo todo programado para el jueves.
+ */
+function estadoProyecto(est) {
+  if (est.kind === 'now') {
+    return h('div', {},
+      h('span', { class: 'proj-next-label', style: 'margin-right:10px', text: 'SIGUIENTE ACCIÓN' }),
+      h('span', { text: est.task.title }));
+  }
+  if (est.kind === 'scheduled') {
+    return h('div', {},
+      h('span', { class: 'proj-next-label', style: 'margin-right:10px', text: `PROGRAMADO · ${relDate(est.task.dueDate)}` }),
+      h('span', { text: est.task.title }),
+      h('div', { class: 'micro', style: 'margin-top:4px', text: 'NO ESTÁ PARADO: TIENE FECHA Y LLEGA SOLO.' }));
+  }
+  if (est.kind === 'waiting') {
+    return h('div', {},
+      h('span', { class: 'proj-next-label', style: 'margin-right:10px', text: `EN ESPERA · ${(est.task.waitingFor || '—').toUpperCase()}` }),
+      h('span', { text: est.task.title }),
+      h('div', { class: 'micro', style: 'margin-top:4px', text: 'AVANZA CUANDO CONTESTEN. DELEGAR NO ES OLVIDAR.' }));
+  }
+  if (est.kind === 'inbox') {
+    return h('div', { class: 'proj-stall' },
+      `${est.count} ${est.count === 1 ? 'cosa capturada sin decidir' : 'cosas capturadas sin decidir'}. Hasta que no digas qué son, esto no se mueve.`);
+  }
+  if (est.kind === 'someday') {
+    return h('div', { class: 'proj-stall' },
+      `Todo lo suyo está aparcado en algún día (${est.count}). Activa una o el proyecto no avanza.`);
+  }
+  return h('div', { class: 'proj-stall', text: 'Sin ninguna acción. Escribe la primera en la columna SIGUIENTE.' });
 }
 
 /* ---------------------------- Editor de columnas -------------------------- */

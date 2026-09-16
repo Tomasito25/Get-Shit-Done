@@ -232,8 +232,11 @@ Es lo primero que ves. De arriba abajo:
 
 - **Crear un proyecto:** la primera tarjeta. Escribe el nombre, **Enter**, el resultado, **Enter**.
   El código (`P07`) lo pone la aplicación.
-- **Cada tarjeta** muestra el avance, la siguiente acción y la fecha tope más cercana. Si un
-  proyecto no tiene siguiente acción, sale en rojo, con un campo para escribirla ahí mismo.
+- **Cada tarjeta** muestra el avance, la fecha tope más cercana y **qué mueve el proyecto ahora**:
+  la siguiente acción (`SIGUE`), o el día en que llega la que está programada (`EN 3 DÍAS`), o a
+  quién esperas (`ESPERAS A ANA`). Solo sale en rojo cuando de verdad está parado: sin ninguna
+  acción, con cosas sin aclarar o con todo aparcado. Entonces trae un campo para escribir la
+  siguiente acción ahí mismo.
 - **Carpetas:** botón **+ CARPETA**. Pulsa el título de una carpeta para plegarla. Para meter un
   proyecto en una carpeta: botón **CARPETA** de su tarjeta.
 - **Pausar:** botón **PAUSAR**. El proyecto desaparece de HOY y del tablero hasta la fecha que
@@ -400,7 +403,10 @@ línea **sin** ninguna marca, va a la bandeja para decidirla después; **con** m
 
 ## Atajos de teclado
 
-Toda la aplicación se puede usar sin ratón. Pulsa `?` dentro de GSD para verlos.
+Toda la aplicación se puede usar sin ratón. Pulsa `?` dentro de GSD: el menú de atajos está
+agrupado por lo que estás haciendo, **se puede buscar** («posponer», «aviso», «columna») y los
+atajos de pantalla son pulsables, así que te lleva ahí de un clic. También dice dónde están las
+cosas que no tienen tecla.
 
 | Tecla | Hace | | Tecla | Hace |
 |---|---|---|---|---|

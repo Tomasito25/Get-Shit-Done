@@ -959,7 +959,7 @@ export function folderStats(id) {
   const tareas = state.tasks.filter((t) => t.projectId && ids.has(t.projectId) && !isNote(t));
   const abiertas = tareas.filter((t) => !t.completed);
   const hechas = tareas.length - abiertas.length;
-  const parados = activos.filter((p) => !projectNext(p.id)).length;
+  const parados = activos.filter((p) => ['none', 'inbox', 'someday'].includes(projectStatus(p.id).kind)).length;
   const tope = abiertas.filter((t) => t.deadline).sort((a, b) => a.deadline.localeCompare(b.deadline))[0] || null;
   return {
     projects: activos.length,
@@ -1187,7 +1187,63 @@ export function projectNext(projectId) {
   return projectTasks(projectId).find((t) => t.status === STATUS.NEXT || (t.status === STATUS.SCHEDULED && isDue(t))) || null;
 }
 
-export const stalledProjects = () => activeProjects().filter((p) => !projectNext(p.id));
+/**
+ * Qué mueve un proyecto, y si no lo mueve nada, por qué.
+ *
+ * Decir «sin siguiente acción» cuando el proyecto tiene trabajo programado para
+ * el jueves, o algo en espera, o tres cosas sin aclarar, es mentir: lo que falta
+ * en cada caso es distinto y la respuesta también.
+ *
+ *   now        hay una acción que se puede hacer ya
+ *   scheduled  la hay, pero es para un día que aún no ha llegado
+ *   waiting    depende de otra persona
+ *   inbox      hay cosas capturadas sin decidir qué son
+ *   someday    todo lo suyo está aparcado
+ *   none       no hay nada: ni acción, ni idea, ni espera
+ */
+export function projectStatus(projectId) {
+  const abiertas = projectTasks(projectId).filter((t) => !isNote(t));
+  const ahora = abiertas.find((t) => t.status === STATUS.NEXT || (t.status === STATUS.SCHEDULED && isDue(t)));
+  if (ahora) return { kind: 'now', task: ahora, count: abiertas.filter((t) => t.status === STATUS.NEXT || t.status === STATUS.SCHEDULED).length };
+
+  const programadas = abiertas.filter((t) => t.status === STATUS.SCHEDULED && t.dueDate).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  if (programadas.length) return { kind: 'scheduled', task: programadas[0], count: programadas.length };
+
+  const esperando = abiertas.filter((t) => t.status === STATUS.WAITING);
+  if (esperando.length) return { kind: 'waiting', task: esperando[0], count: esperando.length };
+
+  const bandeja = abiertas.filter((t) => t.status === STATUS.INBOX);
+  if (bandeja.length) return { kind: 'inbox', task: bandeja[0], count: bandeja.length };
+
+  const aparcadas = abiertas.filter((t) => t.status === STATUS.SOMEDAY);
+  if (aparcadas.length) return { kind: 'someday', task: aparcadas[0], count: aparcadas.length };
+
+  return { kind: 'none', task: null, count: 0 };
+}
+
+/** Frase corta para la tarjeta y el tablero, según lo que falte. */
+export function projectStatusLabel(est) {
+  if (est.kind === 'now') return 'SIGUE';
+  if (est.kind === 'scheduled') return relLabel(est.task.dueDate);
+  if (est.kind === 'waiting') return `ESPERAS A ${(est.task.waitingFor || '—').toUpperCase()}`;
+  if (est.kind === 'inbox') return `${est.count} SIN ACLARAR`;
+  if (est.kind === 'someday') return `${est.count} EN ALGÚN DÍA`;
+  return 'SIN NINGUNA ACCIÓN';
+}
+
+const relLabel = (fecha) => {
+  const dias = daysBetween(today(), fecha);
+  if (dias <= 1) return 'MAÑANA';
+  if (dias <= 7) return `EN ${dias} DÍAS`;
+  return `EL ${fecha.slice(8, 10)}/${fecha.slice(5, 7)}`;
+};
+
+/**
+ * Parado de verdad: no hay nada que hacer ni nada en camino. Lo programado y lo
+ * que espera a otro no está parado; tiene fecha o tiene dueño.
+ */
+export const stalledProjects = () => activeProjects()
+  .filter((p) => ['none', 'inbox', 'someday'].includes(projectStatus(p.id).kind));
 
 /** Lo pospuesto muchas veces no es una tarea: es una decision pendiente. */
 export const chronic = () =>
