@@ -20,6 +20,7 @@ import * as inbox from './inbox.js';
 import {
   pageHead, section, foldSection, taskList, pickTask, openEditor, openPostpone, captureBar,
   askOneThing, askCommit, askDelete, openDelegate, confirmSheet, deadlineTag, completeToggle,
+  countdownStrip,
 } from '../components.js';
 
 export function render() {
@@ -81,6 +82,10 @@ export function render() {
   /* -------------------------------- EL DÍA -------------------------------- */
 
   add(wrap, elDia({ lista, hechasHoy, profundos, venciendo, compromisos }));
+
+  /* ----------------------------- CUENTA ATRÁS ---------------------------- */
+
+  add(wrap, countdownStrip(3));
 
   /* --------------------------- CUENTAS ABIERTAS --------------------------- */
 

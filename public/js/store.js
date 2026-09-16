@@ -241,6 +241,7 @@ function defaultSettings() {
     contexts: [...DEFAULT_CONTEXTS],
     folders: [],
     collapsedFolders: [],
+    countdowns: [],
     lastReview: null,
     review: null,
     sidebar: 'open',
@@ -374,6 +375,7 @@ export async function boot() {
   if (!Array.isArray(state.settings.contexts)) state.settings.contexts = [...DEFAULT_CONTEXTS];
   if (!Array.isArray(state.settings.folders)) state.settings.folders = [];
   if (!Array.isArray(state.settings.collapsedFolders)) state.settings.collapsedFolders = [];
+  if (!Array.isArray(state.settings.countdowns)) state.settings.countdowns = [];
 
   enforceOneThing();
 
@@ -987,6 +989,115 @@ export async function resumeFolder(id) {
   if (dentro.length) await db.putMany('projects', dentro);
   touched();
   return dentro.length;
+}
+
+/* ----------------------------- Cuentas atrás ------------------------------ */
+
+/*
+ * Una cuenta atrás es una fecha que importa y no se mueve: un examen, una
+ * entrega, un viaje. No es una tarea —no se completa— y por eso no ensucia
+ * ninguna lista: solo recuerda cuánto queda.
+ *
+ * Puede ir suelta o colgar de una tarea. Si cuelga de una tarea, la fecha es
+ * la fecha tope de esa tarea: una sola fecha, en un solo sitio.
+ *
+ * Viven en los ajustes, como las carpetas: el modelo de tareas no crece por esto.
+ */
+
+export const countdowns = () => (state.settings && Array.isArray(state.settings.countdowns) ? state.settings.countdowns : []);
+
+const FECHA = /^\d{4}-\d{2}-\d{2}$/;
+const HORA = /^\d{2}:\d{2}$/;
+
+function normCountdown(raw) {
+  return {
+    id: (raw && raw.id) || uid(),
+    title: String((raw && raw.title) || '').trim().slice(0, 80),
+    date: raw && FECHA.test(raw.date || '') ? raw.date : null,
+    time: raw && HORA.test(raw.time || '') ? raw.time : null,
+    taskId: (raw && raw.taskId) || null,
+    projectId: (raw && raw.projectId) || null,
+    createdAt: (raw && raw.createdAt) || now(),
+  };
+}
+
+export const countdownById = (id) => countdowns().find((c) => c.id === id) || null;
+export const countdownForTask = (taskId) => countdowns().find((c) => c.taskId === taskId) || null;
+
+export async function createCountdown(datos) {
+  const c = normCountdown(datos);
+  if (!c.title || (!c.date && !c.taskId)) return null;
+  await saveSettings({ countdowns: [...countdowns(), c] });
+  return c;
+}
+
+export async function updateCountdown(id, patch) {
+  const lista = countdowns().map((c) => (c.id === id ? normCountdown({ ...c, ...patch }) : c));
+  await saveSettings({ countdowns: lista });
+  return countdownById(id);
+}
+
+export async function removeCountdown(id) {
+  await saveSettings({ countdowns: countdowns().filter((c) => c.id !== id) });
+}
+
+/** La fecha manda desde un solo sitio: si cuelga de una tarea, la suya. */
+export function countdownDate(c) {
+  if (c.taskId) {
+    const t = byId(c.taskId);
+    if (t && (t.deadline || t.dueDate)) return t.deadline || t.dueDate;
+  }
+  return c.date;
+}
+
+export function countdownInfo(c) {
+  const fecha = countdownDate(c);
+  const tarea = c.taskId ? byId(c.taskId) : null;
+  const dias = fecha ? daysBetween(today(), fecha) : null;
+  return {
+    ...c,
+    fecha,
+    dias,
+    task: tarea,
+    done: !!(tarea && tarea.completed),
+    past: dias !== null && dias < 0,
+  };
+}
+
+/** Ordenadas por lo que queda. Lo pasado, al final. */
+export function countdownList({ includePast = true, includeDone = true } = {}) {
+  return countdowns()
+    .map(countdownInfo)
+    .filter((c) => c.fecha)
+    .filter((c) => (includePast ? true : !c.past))
+    .filter((c) => (includeDone ? true : !c.done))
+    .sort((a, b) => Number(a.past) - Number(b.past) || a.fecha.localeCompare(b.fecha));
+}
+
+export const upcomingCountdowns = (n = 3) => countdownList({ includePast: false, includeDone: false }).slice(0, n);
+
+export const countdownsOnDate = (date) => countdownList().filter((c) => c.fecha === date);
+
+export const projectCountdowns = (projectId) => countdownList().filter((c) => {
+  if (c.projectId === projectId) return true;
+  return !!(c.task && c.task.projectId === projectId);
+});
+
+/** Cuánto queda, en palabras. Días, que es como se cuenta lo que aprieta. */
+export function countdownLabel(info) {
+  if (info.dias === null) return '';
+  if (info.dias < 0) return `PASÓ HACE ${-info.dias} ${-info.dias === 1 ? 'DÍA' : 'DÍAS'}`;
+  if (info.dias === 0) return info.time ? `HOY ${info.time}` : 'HOY';
+  if (info.dias === 1) return 'MAÑANA';
+  return `${info.dias} DÍAS`;
+}
+
+/** Para el número grande: la cifra y su unidad, por separado. */
+export function countdownBig(info) {
+  if (info.dias === null) return { n: '—', u: '' };
+  if (info.dias < 0) return { n: String(-info.dias), u: 'días después' };
+  if (info.dias === 0) return { n: 'HOY', u: info.time || 'es hoy' };
+  return { n: String(info.dias), u: info.dias === 1 ? 'día' : 'días' };
 }
 
 /* -------------------------------- Contextos ------------------------------ */

@@ -21,7 +21,10 @@ import { add, h, iso, today, addDays, parseISO, monthName, fmtLong, fmtDate, wee
 import * as S from '../store.js';
 import * as V from '../voice.js';
 import * as viewkeys from '../viewkeys.js';
-import { pageHead, section, openEditor, openPostpone, completeToggle, openDelegate } from '../components.js';
+import {
+  pageHead, section, openEditor, openPostpone, completeToggle, openDelegate,
+  openCountdownForm, countdownCard,
+} from '../components.js';
 
 const DOW = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'];
 const MES_CORTO = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
@@ -68,6 +71,7 @@ export function render() {
 
   if (modo !== 'agenda') add(wrap, bandejas(vencidas));
   if (modo === 'mes') add(wrap, detalleDia(estado.sel));
+  add(wrap, panelCuentas());
 
   add(wrap, h('div', { class: 'cal-legend' },
     h('span', {}, h('i', { class: 'cal-chip-demo' }), 'lo que haces ese día'),
@@ -177,6 +181,19 @@ function ficha(t, tipo = 'due') {
   return el;
 }
 
+/** Una cuenta atrás en el calendario: la fecha con nombre y lo que queda. */
+function fichaCuenta(info) {
+  const el = h('div', {
+    class: `cal-chip cal-chip-count${info.dias !== null && info.dias <= 3 && !info.past ? ' late' : ''}`,
+    title: `${info.title} · ${S.countdownLabel(info)}`,
+  },
+    h('b', { text: '◆' }),
+    h('span', { class: 'cal-t', text: info.title }),
+    h('span', { class: 'cal-when', text: info.dias === 0 ? 'HOY' : `${info.dias}D` }));
+  el.addEventListener('click', () => openCountdownForm(S.countdownById(info.id)));
+  return el;
+}
+
 function fichaEspera({ waiting, task }) {
   const el = h('div', { class: 'cal-chip cal-chip-review', title: `${waiting.person}: ${waiting.description}` },
     h('b', { text: `→ ${waiting.person || '—'}` }), h('span', { class: 'cal-t', text: waiting.description || task.title }));
@@ -259,6 +276,7 @@ function semana(dias, agendas) {
       a.deep ? h('span', { class: 'cal-deep', text: `${a.deep}′`, title: `${a.deep} minutos de trabajo profundo` }) : null);
 
     const cuerpo = h('div', { class: 'cal-day-body' },
+      S.countdownsOnDate(fecha).map(fichaCuenta),
       a.deadlines.map((t) => ficha(t, 'deadline')),
       a.reminders.filter((t) => t.dueDate !== fecha).map((t) => ficha(t, 'reminder')),
       a.due.map((t) => ficha(t, 'due')),
@@ -298,6 +316,7 @@ function mes(agendas) {
     const tarde = pasado && a.due.length > 0;
 
     const lineas = [
+      ...S.countdownsOnDate(fecha).map(fichaCuenta),
       ...a.deadlines.map((t) => ficha(t, 'deadline')),
       ...a.due.map((t) => ficha(t, 'due')),
     ];
@@ -343,6 +362,7 @@ function agenda(dias, agendas, vencidas) {
         h('div', { class: 'sec-title', text: titulo }),
         h('div', { class: 'sec-meta', text: exceso ? `${a.due.length} · DEMASIADO PARA UN DÍA` : (a.due.length ? `${a.due.length}` : '') })),
       h('div', { class: 'cal-agenda-list' },
+        S.countdownsOnDate(fecha).map(fichaCuenta),
         a.deadlines.map((t) => ficha(t, 'deadline')),
         a.reminders.map((t) => ficha(t, 'reminder')),
         a.due.map((t) => ficha(t, 'due')),
@@ -391,6 +411,7 @@ function detalleDia(fecha) {
     body: h('div', {},
       pasado ? null : campoDia(fecha, 'detalle'),
       bloque('LO QUE HACES ESE DÍA', a.due.map((t) => ficha(t, 'due'))),
+      bloque('CUENTA ATRÁS', S.countdownsOnDate(fecha).map(fichaCuenta)),
       bloque('VENCE', a.deadlines.map((t) => ficha(t, 'deadline'))),
       bloque('AVISOS', a.reminders.map((t) => ficha(t, 'reminder'))),
       bloque('REVISAR LO QUE ESPERAS', a.reviews.map(fichaEspera)),
@@ -399,5 +420,36 @@ function detalleDia(fecha) {
         ? h('div', { class: 'empty', style: 'margin-top:10px', text: pasado ? 'Nada registrado ese día.' : 'Día libre. Arrastra aquí algo de SIN DÍA o escríbelo arriba.' })
         : null),
     micro: pasado && a.done.length ? `${a.done.length} CERRADAS. ${a.done.length >= 5 ? 'THAT WAS A DAY.' : 'EVERY DAY COUNTS.'}` : null,
+  });
+}
+
+/* ----------------------------- Cuentas atrás ------------------------------ */
+
+/**
+ * Las fechas que no se mueven: exámenes, entregas, viajes. No son tareas, no se
+ * completan y no ensucian ninguna lista; solo dicen cuánto queda.
+ */
+function panelCuentas() {
+  const lista = S.countdownList();
+  const pasadas = lista.filter((c) => c.past || c.done);
+
+  return section('CUENTAS ATRÁS', {
+    meta: lista.length ? String(lista.length) : null,
+    body: h('div', {},
+      h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px' },
+        h('button', {
+          class: 'btn btn-sm btn-primary', type: 'button', text: '+ NUEVA CUENTA ATRÁS',
+          onclick: () => openCountdownForm(),
+        }),
+        pasadas.length
+          ? h('button', {
+            class: 'btn btn-sm btn-ghost', type: 'button', text: `QUITAR LAS ${pasadas.length} PASADAS`,
+            onclick: async () => { for (const c of pasadas) await S.removeCountdown(c.id); toast('Quitadas.'); },
+          })
+          : null),
+      lista.length
+        ? h('div', { class: 'cuentas-row' }, lista.map(countdownCard))
+        : h('div', { class: 'empty', text: 'Ninguna. Sirven para lo que no se mueve: un examen, una entrega, un viaje. También se crean desde la ficha de una tarea, y entonces siguen a su fecha tope.' })),
+    micro: lista.length ? 'PULSA UNA PARA CAMBIARLA O BORRARLA. NO SE COMPLETAN: LA FECHA LLEGA SOLA.' : null,
   });
 }

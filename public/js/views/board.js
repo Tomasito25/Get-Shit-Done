@@ -21,7 +21,7 @@ import { projectStrip } from './notes.js';
 import * as inbox from './inbox.js';
 import {
   pageHead, openEditor, askDelete, askOneThing, askCommit, openSheet, closeTop, sheet, deadlineTag,
-  completeToggle, openDelegate, confirmSheet,
+  completeToggle, openDelegate, confirmSheet, openCountdownForm,
 } from '../components.js';
 
 /** Filtros vivos del tablero: una lupa, no un ajuste. */
@@ -405,6 +405,17 @@ export function render(params = {}) {
           h('span', {}, h('b', { text: `${pct}%` }), ' completado'),
           h('span', {}, h('b', { text: String(abiertas) }), ' abiertas'),
           h('span', {}, h('b', { text: String(hechas) }), ' hechas'))),
+      (() => {
+        // Las fechas que no se mueven de este proyecto, a la vista desde arriba.
+        const cuentas = S.projectCountdowns(proyecto.id).filter((c) => !c.past);
+        return cuentas.length
+          ? h('div', { class: 'board-counts' }, cuentas.map((c) => h('button', {
+            class: `board-count${c.dias <= 3 ? ' cerca' : ''}`, type: 'button',
+            title: 'Cambiar la cuenta atrás',
+            onclick: () => openCountdownForm(S.countdownById(c.id)),
+          }, h('b', { text: S.countdownLabel(c) }), c.title)))
+          : null;
+      })(),
       h('p', { class: 'page-grit', text: ['none', 'inbox', 'someday'].includes(S.projectStatus(proyecto.id).kind)
         ? V.gritProjects({ stalled: 1 })
         : V.gritBoard({ ...cuentas, over: exceso }) })));

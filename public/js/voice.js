@@ -248,3 +248,14 @@ export function ageLine(dias) {
   if (dias >= 21) return 'STALE';
   return '';
 }
+
+/** Cuenta atrás: cuanto menos queda, menos hay que hablar. */
+export function gritCountdown(dias) {
+  if (dias === null || dias === undefined) return '';
+  if (dias < 0) return 'IT PASSED. THAT IS THE SCORE.';
+  if (dias === 0) return 'TODAY. NO EXTENSIONS.';
+  if (dias === 1) return "TOMORROW. THE DATE DOESN'T MOVE.";
+  if (dias <= 3) return 'THREE DAYS OR LESS. ACT LIKE IT.';
+  if (dias <= 14) return "THE CLOCK DOESN'T CARE HOW YOU FEEL.";
+  return "IT'S FAR. IT WON'T STAY FAR.";
+}

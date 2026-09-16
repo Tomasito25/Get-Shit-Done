@@ -297,6 +297,7 @@ const ATAJOS = [
       ['·', 'Duplicar una tarea: en su ficha'],
       ['·', 'Convertir en anotación: en la ficha, ES UNA ANOTACIÓN'],
       ['·', 'Fijar una anotación para verla en HOY: el rombo ◇'],
+      ['·', 'Cuenta atrás para una fecha: en CALENDARIO, o en la ficha de una tarea'],
       ['·', 'Pausar un proyecto: en su tarjeta o en su tablero'],
       ['·', 'Mover un proyecto de carpeta: botón CARPETA de su tarjeta'],
       ['·', 'Cambiar un día en el calendario: arrastrar la tarea'],

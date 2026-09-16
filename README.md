@@ -206,6 +206,7 @@ llevan por todo lo que tienes para que nada se quede olvidado.
 | **Cuándo lo haces** | El día en que piensas ponerte. |
 | **Fecha tope** | El último día en que sirve hacerlo. No es lo mismo que *cuándo lo haces*. |
 | **Aviso** | Una notificación en tu escritorio, a la hora que elijas. |
+| **Cuenta atrás** | Una fecha que no se mueve —un examen, una entrega, un viaje— con los días que faltan. No es una tarea: no se completa. |
 | **Enfoque** | Pantalla completa con una sola tarea, sin nada más. |
 | **Trabajo profundo** | Un bloque de tiempo largo y protegido para concentrarte. |
 
@@ -287,12 +288,27 @@ Ordenadas por antigüedad, porque lo que lleva meses aparcado casi siempre es un
   proyecto con su código), **ANOTAR**.
 - Escribe arriba para aparcar una idea nueva.
 
+### CUENTAS ATRÁS — lo que no se mueve
+
+Para las fechas que mandan: un examen, una entrega, un viaje. **No son tareas**: no se completan,
+no salen en ninguna lista de trabajo y no cuentan como nada pendiente. Solo dicen cuánto queda.
+
+- **Se crean** en CALENDARIO → **+ NUEVA CUENTA ATRÁS**, o desde la ficha de una tarea con el
+  botón **CUENTA ATRÁS**.
+- **Si cuelgan de una tarea**, la fecha es su **fecha tope**: se cambia en un sitio o en el otro,
+  pero es la misma. Nunca hay dos fechas para lo mismo.
+- **Dónde se ven:** en HOY, las tres más cercanas con los días en grande; en el calendario,
+  marcadas en su día (◆); y en la cabecera del proyecto al que pertenecen.
+- A tres días o menos, el número se pone en rojo.
+- Cuando pasan se quedan un tiempo a la vista («PASÓ HACE 2 DÍAS») y se quitan todas de golpe
+  con un botón.
+
 ### CALENDARIO — planificar la semana
 
 ![Calendario: semana con bandejas de vencidas y sin día](docs/calendario.png)
 
 Tres vistas: **SEMANA**, **MES** y **AGENDA** (las próximas tres semanas en lista). Cada día enseña
-lo que piensas hacer, sus **fechas tope** (en rojo), sus **avisos** (◷), a quién toca **preguntar**
+lo que piensas hacer, sus **fechas tope** (en rojo), las **cuentas atrás** (◆), sus **avisos** (◷), a quién toca **preguntar**
 (→) y, con **VER LO HECHO**, lo que cerraste.
 
 - **Arrastra** una tarea a otro día para cambiarla de fecha. Escribe en **+ añadir** para crear
@@ -573,6 +589,7 @@ Task      id · title · status · projectId · context · dueDate · deadline �
           postponeCount · recurrence · pinned
 Project   id · code · name · outcome · folderId · status · pausedUntil · createdAt
 Folder    id · name · createdAt                      (guardadas en los ajustes)
+Countdown id · title · date · time · taskId · projectId · createdAt   (en los ajustes)
 Ajustes   … · cards (qué enseñan las tarjetas) · boardGroup · calendarView
 Waiting   id · taskId · person · description · reviewDate
 Session   id · taskId · kind · plannedMin · startedAt · endedAt · minutes · note

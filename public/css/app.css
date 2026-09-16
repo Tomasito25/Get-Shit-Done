@@ -1484,6 +1484,60 @@ body.nav-collapsed .nav-grit{display:none}
   border-top:1px solid var(--line-2);font-size:11.5px;color:var(--muted);
 }
 
+/* ----------------------------- Cuentas atrás ------------------------------ */
+
+/*
+ * El número manda: los días que quedan, grandes, y debajo qué es. Una fecha que
+ * no se mueve no necesita adornos, necesita verse desde la puerta.
+ */
+.cuentas{margin:0 0 30px}
+.cuentas-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:10px}
+.cuentas-title{
+  font-family:var(--mono);font-size:10px;letter-spacing:.24em;font-weight:700;
+  text-transform:uppercase;color:var(--ink);
+}
+.cuentas-grit{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--muted)}
+.cuentas-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px}
+.cuenta{
+  border:1px solid var(--line);border-left:3px solid var(--ink-2);
+  background:var(--panel);padding:12px 13px 10px;text-align:left;min-width:0;
+}
+.cuenta:hover{border-color:var(--ink);border-left-color:var(--ink)}
+.cuenta-n{
+  font-family:var(--mono);font-size:34px;line-height:1;font-weight:700;
+  color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.03em;
+}
+.cuenta-u{
+  font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--muted);margin-top:3px;
+}
+.cuenta-t{
+  font-size:13px;line-height:1.3;color:var(--ink-2);margin-top:9px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.cuenta-meta{
+  display:flex;gap:10px;flex-wrap:wrap;margin-top:7px;
+  font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--faint);text-transform:uppercase;
+}
+.cuenta-cerca{border-left-color:var(--warn)}
+.cuenta-cerca .cuenta-n{color:var(--warn)}
+.cuenta-pasada{opacity:.55;border-left-color:var(--line)}
+.cuenta-pasada .cuenta-n{font-size:22px;color:var(--muted)}
+.cuenta-hecha .cuenta-t{text-decoration:line-through;color:var(--faint)}
+
+/* En el calendario y en la cabecera de un proyecto. */
+.cal-chip-count{border-left-color:var(--ink);color:var(--ink);font-weight:600}
+.cal-chip-count b{color:var(--ink)}
+.board-counts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.board-count{
+  display:flex;gap:8px;align-items:baseline;border:1px solid var(--line);
+  padding:4px 9px;font-size:12px;color:var(--ink-2);max-width:100%;
+}
+.board-count b{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--ink)}
+.board-count:hover{border-color:var(--ink);color:var(--ink)}
+.board-count.cerca{border-color:var(--warn)}
+.board-count.cerca b{color:var(--warn)}
+
 /* ------------------------------- Responsive ------------------------------ */
 
 @media (max-width:760px){
@@ -1507,6 +1561,8 @@ body.nav-collapsed .nav-grit{display:none}
   .focus-timer{font-size:42px}
   .row2{grid-template-columns:1fr}
   .cardcfg{grid-template-columns:1fr}
+  .cuentas-row{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+  .cuenta-n{font-size:28px}
   .cardcfg-fields{grid-template-columns:1fr}
   .cardcfg-preview{position:static}
   .cal-week{grid-template-columns:1fr}

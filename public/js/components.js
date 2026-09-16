@@ -1,6 +1,6 @@
 /* Piezas de interfaz compartidas: capas, filas, editor, friccion. */
 
-import { add, h, holdToConfirm, toast, focusSoon, relDate, fmtDate, fmtLong, today, tomorrow, addDays, iso, parseISO } from './util.js';
+import { add, h, holdToConfirm, toast, focusSoon, relDate, fmtDate, fmtLong, today, tomorrow, addDays, daysBetween, iso, parseISO } from './util.js';
 import * as S from './store.js';
 import * as V from './voice.js';
 import { parseCapture, describe, parseRecurrence, parseDate } from './parse.js';
@@ -574,6 +574,12 @@ export function openEditor(id) {
       ? boton('PARA HOY', async () => { guardarPendiente(); await askCommit(id); if (S.byId(id).isCommitment) reabrir(); })
       : null,
     !t.completed && t.status !== S.STATUS.SOMEDAY ? boton('POSPONER', () => { guardarPendiente(); closeTop(); openPostpone(id); }) : null,
+    boton(S.countdownForTask(id) ? 'CUENTA ATRÁS ✓' : 'CUENTA ATRÁS', () => {
+      guardarPendiente();
+      const existente = S.countdownForTask(id);
+      closeTop();
+      openCountdownForm(existente || null, existente ? {} : { taskId: id });
+    }),
     boton('DUPLICAR', async () => {
       guardarPendiente();
       const copia = await S.duplicateTask(id);
@@ -958,6 +964,156 @@ export function openNote(id) {
       h('button', { class: 'btn', type: 'button', text: 'CERRAR', onclick: closeTop }),
     ],
   }), { onClose: () => { gt.blur(); gc.blur(); } });
+}
+
+/* ----------------------------- Cuentas atrás ------------------------------ */
+
+/*
+ * Una fecha que no se mueve, con nombre y con los días que quedan.
+ * Si cuelga de una tarea, la fecha es la fecha tope de esa tarea: se cambia
+ * aquí o allí, pero es la misma, y nunca hay dos verdades.
+ */
+
+export function openCountdownForm(existing = null, { taskId = null } = {}) {
+  const tareaId = existing ? existing.taskId : taskId;
+  const tarea = tareaId ? S.byId(tareaId) : null;
+
+  const titulo = h('input', {
+    class: 'input', type: 'text', 'data-autofocus': 'end',
+    placeholder: 'Examen de inglés · Entrega del trabajo · Viaje',
+    value: existing ? existing.title : (tarea ? tarea.title.slice(0, 80) : ''),
+  });
+
+  const fechaInicial = existing ? S.countdownDate(existing) : (tarea ? (tarea.deadline || tarea.dueDate || '') : '');
+  const fecha = h('input', { class: 'input', type: 'date', value: fechaInicial || '' });
+  const hora = h('input', { class: 'input', type: 'time', value: existing && existing.time ? existing.time : '' });
+
+  const proyecto = h('select', { class: 'select' },
+    h('option', { value: '', text: '— sin proyecto —' }),
+    S.selectableProjects().map((p) => h('option', {
+      value: p.id, text: S.projectLabel(p),
+      selected: existing ? existing.projectId === p.id : false,
+    })));
+
+  const eco = h('div', { class: 'capture-echo' });
+  const pintarEco = () => {
+    if (!fecha.value) { eco.textContent = ''; eco.classList.remove('on'); return; }
+    const dias = daysBetween(today(), fecha.value);
+    const info = { dias, time: hora.value || null };
+    eco.textContent = `${fmtLong(fecha.value)} · ${S.countdownLabel(info)}`;
+    eco.classList.add('on');
+  };
+  fecha.addEventListener('change', pintarEco);
+  hora.addEventListener('change', pintarEco);
+  pintarEco();
+
+  const chips = [
+    { label: '+1 SEM', valor: addDays(today(), 7) },
+    { label: '+2 SEM', valor: addDays(today(), 14) },
+    { label: '+1 MES', valor: addDays(today(), 30) },
+    { label: 'FIN DE MES', valor: finDeMes() },
+  ];
+  if (tarea && tarea.deadline) chips.unshift({ label: `FECHA TOPE · ${fmtDate(tarea.deadline)}`, valor: tarea.deadline });
+  const fila = h('div', { class: 'date-chips' }, chips.map((c) => h('button', {
+    class: 'date-chip', type: 'button', text: c.label, title: fmtLong(c.valor),
+    onclick: () => { fecha.value = c.valor; pintarEco(); },
+  })));
+
+  const guardar = async () => {
+    if (!titulo.value.trim()) { titulo.focus(); return; }
+    if (!fecha.value) { fecha.focus(); return; }
+    const datos = {
+      title: titulo.value.trim(),
+      date: fecha.value,
+      time: hora.value || null,
+      taskId: tareaId || null,
+      projectId: tareaId ? null : (proyecto.value || null),
+    };
+    // Con tarea detrás, la fecha tope y la cuenta atrás son la misma fecha.
+    if (tareaId) await S.updateTask(tareaId, { deadline: fecha.value });
+    if (existing) await S.updateCountdown(existing.id, datos);
+    else await S.createCountdown(datos);
+    closeTop();
+    toast(existing ? 'Cuenta atrás actualizada.' : 'Cuenta atrás creada.');
+  };
+
+  const body = h('div', {},
+    h('div', { class: 'field' }, h('label', { class: 'label', text: 'Qué cuentas' }), titulo),
+    h('div', { class: 'row2' },
+      h('div', { class: 'field' },
+        h('label', { class: 'label', text: 'Qué día' }), fecha, fila, eco),
+      h('div', { class: 'field' },
+        h('label', { class: 'label', text: 'Hora (opcional)' }), hora,
+        h('div', { class: 'check-note', style: 'margin-top:6px', text: 'Solo para saber a qué hora es: no manda ningún aviso.' }))),
+    tarea
+      ? h('div', { class: 'notice', style: 'margin-top:4px' },
+        h('div', { class: 'notice-title', text: 'CUELGA DE UNA TAREA' }),
+        h('div', { class: 'notice-body', text: `${tarea.title} — la fecha de aquí es su fecha tope. Cambiarla aquí la cambia allí.` }))
+      : h('div', { class: 'field' }, h('label', { class: 'label', text: 'Proyecto (opcional)' }), proyecto),
+    h('div', { class: 'micro', style: 'margin-top:14px', text: 'UNA CUENTA ATRÁS NO SE COMPLETA NI APARECE EN NINGUNA LISTA DE TRABAJO. SOLO CUENTA.' }));
+
+  body.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') { e.preventDefault(); guardar(); } });
+
+  openSheet(sheet({
+    title: existing ? 'Cuenta atrás' : 'Nueva cuenta atrás',
+    body,
+    foot: [
+      existing
+        ? h('button', {
+          class: 'btn btn-ghost btn-warn', type: 'button', text: 'ELIMINAR',
+          onclick: () => {
+            closeTop();
+            confirmSheet({
+              title: 'Eliminar la cuenta atrás',
+              body: 'La fecha sigue donde esté (en su tarea, si la tiene). Solo deja de contarse aquí.',
+              confirmText: 'ELIMINAR',
+              warn: true,
+              onConfirm: () => S.removeCountdown(existing.id),
+            });
+          },
+        })
+        : null,
+      h('div', { class: 'spacer' }),
+      h('button', { class: 'btn btn-ghost', type: 'button', text: 'CANCELAR', onclick: closeTop }),
+      h('button', { class: 'btn btn-primary', type: 'button', text: existing ? 'GUARDAR' : 'CREAR', onclick: guardar }),
+    ],
+  }));
+}
+
+/** El bloque con el número grande. Se usa en HOY y en el calendario. */
+export function countdownCard(info) {
+  const grande = S.countdownBig(info);
+  const p = S.projectById(info.projectId || (info.task ? info.task.projectId : null));
+  const apremia = !info.past && info.dias !== null && info.dias <= 3;
+
+  return h('button', {
+    class: `cuenta${apremia ? ' cuenta-cerca' : ''}${info.past ? ' cuenta-pasada' : ''}${info.done ? ' cuenta-hecha' : ''}`,
+    type: 'button',
+    title: `${fmtLong(info.fecha)}${info.time ? ` · ${info.time}` : ''} — pulsa para editarla`,
+    onclick: () => openCountdownForm(S.countdownById(info.id)),
+  },
+    h('div', { class: 'cuenta-n' }, grande.n),
+    h('div', { class: 'cuenta-u', text: grande.u }),
+    h('div', { class: 'cuenta-t', text: info.title }),
+    h('div', { class: 'cuenta-meta' },
+      h('span', { text: fmtDate(info.fecha) }),
+      p ? h('span', { text: S.projectLabel(p) }) : null,
+      info.done ? h('span', { text: 'hecha' }) : null));
+}
+
+/** Tira de cuentas atrás para HOY: lo que viene, sin ocupar media pantalla. */
+export function countdownStrip(n = 3) {
+  const items = S.upcomingCountdowns(n);
+  if (!items.length) return null;
+  return h('section', { class: 'cuentas' },
+    h('div', { class: 'cuentas-head' },
+      h('span', { class: 'cuentas-title', text: 'CUENTA ATRÁS' }),
+      h('span', { class: 'cuentas-grit', text: V.gritCountdown(items[0].dias) }),
+      h('button', {
+        class: 'unico-link', style: 'margin-left:auto;color:var(--muted)', type: 'button', text: 'VER TODAS',
+        onclick: () => { location.hash = '#/calendario'; },
+      })),
+    h('div', { class: 'cuentas-row' }, items.map(countdownCard)));
 }
 
 /* ---------------------------- Captura rapida ----------------------------- */
