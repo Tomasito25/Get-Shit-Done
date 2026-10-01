@@ -290,7 +290,7 @@ const ATAJOS = [
     items: [
       ['0 – 6', 'Aclarar la bandeja: hacerla, eliminar, anotar, algún día, delegar, programar, siguiente acción'],
       ['1 – 6', 'Algún día, decidiendo una a una'],
-      ['1 – 3', 'Hábitos: marcar el primero, el segundo o el tercero de hoy'],
+      ['1 – 3', 'Hábitos: el primero, el segundo o el tercero de hoy (marcar, apuntar la cifra o la caída)'],
       ['Esc', 'Salir de lo que estés: capa, aclarado o decisión'],
     ],
   },
@@ -304,7 +304,9 @@ const ATAJOS = [
       ['·', 'Fijar una anotación para verla en HOY: el rombo ◇'],
       ['·', 'Cuenta atrás para una fecha: en CALENDARIO, o en la ficha de una tarea'],
       ['·', 'Marcar un hábito: en HOY; un día olvidado, en HÁBITOS o en CALENDARIO'],
-      ['·', 'Aviso de un hábito: en su ficha, con la hora (solo si aún no lo has hecho)'],
+      ['·', 'Tipos de hábito: sí/no, cantidad, límite o dejarlo, en su ficha'],
+      ['·', 'Ordenar o crear categorías de hábitos: botón CATEGORÍAS en HÁBITOS'],
+      ['·', 'Aviso de un hábito: en su ficha, con la hora (solo si aún queda algo por hacer)'],
       ['·', 'Pausar un proyecto: en su tarjeta o en su tablero'],
       ['·', 'Mover un proyecto de carpeta: botón CARPETA de su tarjeta'],
       ['·', 'Cambiar un día en el calendario: arrastrar la tarea'],
@@ -476,15 +478,16 @@ async function vigilarAvisos() {
         toast(`Aviso: ${t.title}`);
       }
     }
-    // Hábitos: el de hoy, a su hora, solo si aún no está hecho.
-    for (const { habit: hb } of S.lateHabitsToday()) {
+    // Hábitos: los de hoy, a su hora, si aún queda algo que hacer (o que aguantar).
+    for (const hb of S.habitRemindersDue()) {
       const clave = `habito|${hb.id}|${iso(ahora)}T${hb.time}`;
       if (yaVisto(clave)) continue;
       marcar(clave);
+      const texto = hb.kind === 'quit' ? `Hoy no: ${hb.title}` : hb.title;
       if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('GSD · Hábito', { body: [hb.title, hb.cue].filter(Boolean).join('\n') });
+        new Notification('GSD · Hábito', { body: [texto, hb.cue].filter(Boolean).join('\n') });
       } else {
-        toast(`Hábito: ${hb.title}`);
+        toast(`Hábito: ${texto}`);
       }
     }
   };

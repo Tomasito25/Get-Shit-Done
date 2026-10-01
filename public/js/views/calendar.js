@@ -26,7 +26,7 @@ import * as V from '../voice.js';
 import * as viewkeys from '../viewkeys.js';
 import {
   pageHead, section, openEditor, openPostpone, completeToggle, openDelegate,
-  openCountdownForm, countdownCard, markHabit, openHabitForm,
+  openCountdownForm, countdownCard, habitDayAction, openHabitForm,
 } from '../components.js';
 
 const DOW = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'];
@@ -198,38 +198,40 @@ function fichaCuenta(info) {
   return el;
 }
 
-const HAB_TEXTO = { done: 'hecho', missed: 'no se hizo', pending: 'hoy, sin hacer', future: 'toca ese día' };
-
-/** Un hábito en un día. Hoy y lo pasado se marcan; el futuro solo se ve. */
+/** Un hábito en un día. Hoy y lo pasado se marcan (o se apunta la cifra); el futuro solo se ve. */
 function fichaHabito({ habit: hb, state }, fecha) {
-  const marcable = fecha <= today();
+  const marcable = fecha <= today() && state !== 'future';
+  const cifra = hb.kind === 'amount' || hb.kind === 'limit';
+  const cumplido = state === 'done' || state === 'holding';
   const el = h('div', {
     class: `cal-chip cal-chip-habit h-${state}`,
-    title: `Hábito · ${hb.title}${hb.cue ? ` · ${hb.cue}` : ''} · ${HAB_TEXTO[state] || ''}`,
+    title: `Hábito · ${S.habitCategoryLabel(hb.category)} · ${hb.title}${hb.cue ? ` · ${hb.cue}` : ''} · ${state === 'future' ? 'toca ese día' : S.habitDayLabel(hb, fecha)}`,
   },
     marcable
       ? h('button', {
-        class: `cal-check${state === 'done' ? ' done' : ''}`, type: 'button',
-        title: state === 'done' ? 'Desmarcar' : 'Marcar como hecho',
-        onclick: (e) => { e.stopPropagation(); markHabit(hb.id, fecha); },
+        class: `cal-check${cumplido ? ' done' : ''}${state === 'partial' ? ' part' : ''}`, type: 'button',
+        title: cifra ? 'Apuntar la cifra de ese día' : (hb.kind === 'quit' ? (cumplido ? 'Apuntar que caíste' : 'Quitar la caída') : (cumplido ? 'Desmarcar' : 'Marcar como hecho')),
+        onclick: (e) => { e.stopPropagation(); habitDayAction(hb, fecha); },
       })
       : h('b', { text: '○' }),
     h('span', { class: 'cal-t', text: hb.title }),
-    state === 'missed'
-      ? h('span', { class: 'cal-when', text: 'NO' })
-      : (hb.time && state !== 'done' ? h('span', { class: 'cal-code', text: hb.time }) : null));
+    cifra && marcable
+      ? h('span', { class: state === 'missed' || (state === 'partial' && fecha < today()) ? 'cal-when' : 'cal-code', text: `${S.fmtAmount(S.habitValue(hb, fecha))}/${S.fmtAmount(hb.target || 0)}` })
+      : (state === 'missed'
+        ? h('span', { class: 'cal-when', text: hb.kind === 'quit' ? 'CAÍSTE' : 'NO' })
+        : (hb.time && !cumplido ? h('span', { class: 'cal-code', text: hb.time }) : null)));
   el.addEventListener('click', () => openHabitForm(S.habitById(hb.id)));
   return el;
 }
 
-/** En el mes, un cuadrado por hábito: lleno si se hizo. Solo hasta hoy. */
+/** En el mes, un cuadrado por hábito: lleno si se cumplió. Solo hasta hoy. */
 function puntosHabitos(fecha) {
   if (fecha > today()) return null;
   const items = S.habitsOn(fecha);
   if (!items.length) return null;
   return h('span', {
     class: 'cal-hab',
-    title: items.map((x) => `${x.habit.title}: ${HAB_TEXTO[x.state] || ''}`).join('\n'),
+    title: items.map((x) => `${x.habit.title}: ${S.habitDayLabel(x.habit, fecha)}`).join('\n'),
   }, items.map((x) => h('i', { class: x.state })));
 }
 
@@ -458,7 +460,7 @@ function detalleDia(fecha) {
     body: h('div', {},
       pasado ? null : campoDia(fecha, 'detalle'),
       bloque('LO QUE HACES ESE DÍA', a.due.map((t) => ficha(t, 'due'))),
-      bloque(`HÁBITOS · ${habitos.filter((x) => x.state === 'done').length}/${habitos.length}`, habitos.map((x) => fichaHabito(x, fecha))),
+      bloque(`HÁBITOS · ${habitos.filter((x) => x.state === 'done' || x.state === 'holding').length}/${habitos.length}`, habitos.map((x) => fichaHabito(x, fecha))),
       bloque('CUENTA ATRÁS', S.countdownsOnDate(fecha).map(fichaCuenta)),
       bloque('VENCE', a.deadlines.map((t) => ficha(t, 'deadline'))),
       bloque('AVISOS', a.reminders.map((t) => ficha(t, 'reminder'))),

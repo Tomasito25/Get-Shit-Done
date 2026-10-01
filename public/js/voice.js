@@ -278,3 +278,5 @@ export function habitDoneLine(racha) {
   if (racha >= 2) return `${racha} IN A ROW. AGAIN TOMORROW.`;
   return 'DONE. SHOW UP AGAIN TOMORROW.';
 }
+
+export const habitSlipLine = () => "YOU FELL. FINE. DON'T FALL TWICE.";

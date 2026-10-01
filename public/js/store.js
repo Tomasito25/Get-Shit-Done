@@ -243,6 +243,7 @@ function defaultSettings() {
     collapsedFolders: [],
     countdowns: [],
     habits: [],
+    habitCategories: defaultHabitCategories(),
     lastReview: null,
     review: null,
     sidebar: 'open',
@@ -379,6 +380,11 @@ export async function boot() {
   if (!Array.isArray(state.settings.countdowns)) state.settings.countdowns = [];
   if (!Array.isArray(state.settings.habits)) state.settings.habits = [];
   else state.settings.habits = state.settings.habits.map(normHabit);
+  // Las categorías se guardan en cuanto existen: sus ids son a lo que apunta cada hábito.
+  if (!Array.isArray(state.settings.habitCategories)) {
+    state.settings.habitCategories = defaultHabitCategories();
+    await db.put('meta', state.settings);
+  }
 
   enforceOneThing();
 
@@ -1106,36 +1112,121 @@ export function countdownBig(info) {
 /* -------------------------------- Hábitos -------------------------------- */
 
 /*
- * Lo que se hace los días que toca, sin negociarlo. Tres como mucho cada día:
- * con un cuarto, los cuatro salen peor.
+ * Lo que se hace —o se deja de hacer— los días que toca, sin negociarlo.
+ * Dos topes: tres hábitos como mucho cada día, y uno por categoría. Con un
+ * cuarto, los cuatro salen peor; con dos de lo mismo, uno sobra.
  *
- * No son tareas: no pasan por la bandeja ni por el tablero, no se posponen y
- * no se arrastran. Ese día se hizo o no se hizo, y queda apuntado.
+ * Cuatro tipos:
+ *   check   sí o no: se hizo o no se hizo
+ *   amount  cantidad: al menos N (páginas, minutos, problemas…)
+ *   limit   límite: como mucho N (cafés, minutos de móvil…)
+ *   quit    dejarlo: cada día sin caer cuenta; si caes, se apunta
  *
- * Viven en los ajustes, como las cuentas atrás. Cada hábito guarda los días
- * en que se hizo y sus pausas; un día en pausa no cuenta ni a favor ni en contra.
+ * No son tareas: no pasan por la bandeja, no se posponen ni se arrastran.
+ * Cada hábito guarda un registro por día (log: fecha → número) y sus pausas;
+ * un día en pausa no cuenta ni a favor ni en contra.
+ *
+ * Viven en los ajustes, como las cuentas atrás, y sus categorías también.
  */
 
 export const HABITS_PER_DAY = 3;
+export const HABIT_KINDS = ['check', 'amount', 'limit', 'quit'];
+export const HABIT_KIND_LABEL = { check: 'SÍ / NO', amount: 'CANTIDAD', limit: 'LÍMITE', quit: 'DEJARLO' };
+const CON_NUMERO = new Set(['amount', 'limit']);
+/** En dejarlo y en límite se cumple por defecto: lo que cuenta es no caer. */
+export const isHoldHabit = (hb) => hb.kind === 'quit' || hb.kind === 'limit';
 
 /** De lunes a domingo, con los números de Date.getDay(). */
 export const WEEK = [1, 2, 3, 4, 5, 6, 0];
 export const DAY_LETTER = { 1: 'L', 2: 'M', 3: 'X', 4: 'J', 5: 'V', 6: 'S', 0: 'D' };
 export const DAY_NAME = { 1: 'lunes', 2: 'martes', 3: 'miércoles', 4: 'jueves', 5: 'viernes', 6: 'sábado', 0: 'domingo' };
 
+/* ------------------------------ Categorías ------------------------------- */
+
+const CATEGORIAS_BASE = ['SALUD', 'MENTE', 'ESTUDIO', 'TRABAJO', 'CASA', 'DINERO', 'RELACIONES'];
+export const defaultHabitCategories = () => CATEGORIAS_BASE.map((name) => ({ id: uid(), name }));
+
+export const habitCategories = () => (state.settings && Array.isArray(state.settings.habitCategories) ? state.settings.habitCategories : []);
+export const habitCategoryById = (id) => habitCategories().find((c) => c.id === id) || null;
+export const habitCategoryLabel = (id) => { const c = habitCategoryById(id); return c ? c.name : 'SIN CATEGORÍA'; };
+
+const claveNombre = (x) => String(x || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const nombreCategoria = (x) => String(x || '').trim().replace(/\s+/g, ' ').slice(0, 24).toUpperCase();
+
+function categoriaRepetida(nombre, except = null) {
+  return habitCategories().find((c) => c.id !== except && claveNombre(c.name) === claveNombre(nombre)) || null;
+}
+
+export async function createHabitCategory(name) {
+  const nombre = nombreCategoria(name);
+  if (!nombre) return { error: 'Ponle nombre.' };
+  if (categoriaRepetida(nombre)) return { error: `Ya existe ${nombre}.` };
+  const c = { id: uid(), name: nombre };
+  await saveSettings({ habitCategories: [...habitCategories(), c] });
+  return { category: c };
+}
+
+export async function renameHabitCategory(id, name) {
+  const nombre = nombreCategoria(name);
+  if (!nombre) return { error: 'Ponle nombre.' };
+  if (categoriaRepetida(nombre, id)) return { error: `Ya existe ${nombre}.` };
+  await saveSettings({ habitCategories: habitCategories().map((c) => (c.id === id ? { ...c, name: nombre } : c)) });
+  return { category: habitCategoryById(id) };
+}
+
+/** Una categoría con hábito no se borra: primero se le cambia la categoría al hábito. */
+export async function removeHabitCategory(id) {
+  const usa = habits().find((hb) => hb.category === id);
+  if (usa) return { error: `La usa «${usa.title}». Cámbiale la categoría o bórralo antes.` };
+  await saveSettings({ habitCategories: habitCategories().filter((c) => c.id !== id) });
+  return {};
+}
+
+export async function moveHabitCategory(id, delta) {
+  const lista = [...habitCategories()];
+  const i = lista.findIndex((c) => c.id === id);
+  const j = i + delta;
+  if (i < 0 || j < 0 || j >= lista.length) return;
+  [lista[i], lista[j]] = [lista[j], lista[i]];
+  await saveSettings({ habitCategories: lista });
+}
+
+/** El hábito activo que ocupa una categoría. Uno en pausa no la ocupa. */
+export const categoryOwner = (catId, { except = null } = {}) => habits()
+  .find((hb) => hb.category === catId && hb.id !== except && !isHabitPaused(hb)) || null;
+
+/* -------------------------------- El hábito ------------------------------ */
+
 export const habits = () => (state.settings && Array.isArray(state.settings.habits) ? state.settings.habits : []);
+
+const redondeo = (n) => Math.round(n * 100) / 100;
 
 function normHabit(raw) {
   const r = raw || {};
   const dias = Array.isArray(r.days) ? r.days.map(Number) : [...WEEK];
+  const kind = HABIT_KINDS.includes(r.kind) ? r.kind : 'check';
+  const objetivo = Number(r.target);
+  const log = {};
+  // Formato de la primera versión: la lista de días hechos.
+  if (Array.isArray(r.done)) for (const d of r.done) if (FECHA.test(d)) log[d] = 1;
+  if (r.log && typeof r.log === 'object') {
+    for (const [d, v] of Object.entries(r.log)) {
+      const n = Number(v);
+      if (FECHA.test(d) && Number.isFinite(n) && n > 0) log[d] = Math.min(redondeo(n), 100000);
+    }
+  }
   return {
     id: r.id || uid(),
     title: String(r.title || '').trim().slice(0, 60),
     cue: String(r.cue || '').trim().slice(0, 80),
+    category: r.category || null,
+    kind,
+    target: CON_NUMERO.has(kind) && Number.isFinite(objetivo) && objetivo > 0 ? Math.min(redondeo(objetivo), 100000) : null,
+    unit: CON_NUMERO.has(kind) ? String(r.unit || '').trim().slice(0, 16).toLowerCase() : '',
     days: WEEK.filter((d) => dias.includes(d)),
     time: HORA.test(r.time || '') ? r.time : null,
     start: FECHA.test(r.start || '') ? r.start : today(),
-    done: Array.isArray(r.done) ? [...new Set(r.done.filter((d) => FECHA.test(d)))].sort() : [],
+    log,
     pauses: Array.isArray(r.pauses)
       ? r.pauses.filter((p) => p && FECHA.test(p.from)).map((p) => ({ from: p.from, to: FECHA.test(p.to || '') ? p.to : null }))
       : [],
@@ -1143,8 +1234,11 @@ function normHabit(raw) {
   };
 }
 
-/** Con hora de aviso primero y por hora; después, por antigüedad. */
-const ordenHabitos = (a, b) => (a.time || '99:99').localeCompare(b.time || '99:99') || a.createdAt.localeCompare(b.createdAt);
+/** Por categoría, en el orden que tengan; dentro, por hora de aviso y antigüedad. */
+const posCategoria = (id) => { const i = habitCategories().findIndex((c) => c.id === id); return i < 0 ? 999 : i; };
+const ordenHabitos = (a, b) => posCategoria(a.category) - posCategoria(b.category)
+  || (a.time || '99:99').localeCompare(b.time || '99:99')
+  || a.createdAt.localeCompare(b.createdAt);
 
 export const habitById = (id) => habits().find((x) => x.id === id) || null;
 export const isHabitPaused = (hb) => hb.pauses.some((p) => !p.to);
@@ -1156,35 +1250,99 @@ const pausadoEl = (hb, fecha) => hb.pauses.some((p) => fecha >= p.from && (!p.to
 
 /** ¿Tocaba ese día? Existía ya, es uno de sus días y no estaba en pausa. */
 export const habitDueOn = (hb, fecha) => fecha >= hb.start && hb.days.includes(diaSemana(fecha)) && !pausadoEl(hb, fecha);
-export const habitDoneOn = (hb, fecha) => hb.done.includes(fecha);
+export const habitValue = (hb, fecha) => hb.log[fecha] || 0;
 
-/** done · pending (hoy, aún no) · missed (pasó sin hacerse) · future · null (no tocaba). */
+/** ¿Se cumplió ese día? En dejarlo y en límite, cumplir es no pasarse. */
+export function habitOk(hb, fecha) {
+  const v = habitValue(hb, fecha);
+  if (hb.kind === 'amount') return v >= (hb.target || 1);
+  if (hb.kind === 'limit') return v <= (hb.target || 0);
+  if (hb.kind === 'quit') return v < 1;
+  return v >= 1;
+}
+
+/**
+ * Qué pasó un día:
+ *   done     cumplido
+ *   holding  hoy, y de momento sin caer (dejarlo, límite)
+ *   partial  algo, pero sin llegar al objetivo (cantidad); si ya pasó, no cumple
+ *   pending  hoy, aún sin hacer
+ *   missed   tocaba y no se cumplió (o se cayó)
+ *   future   aún no ha llegado
+ *   null     no tocaba
+ */
 export function habitState(hb, fecha) {
-  if (habitDoneOn(hb, fecha)) return 'done';
-  if (!habitDueOn(hb, fecha)) return null;
+  const v = habitValue(hb, fecha);
+  if (!habitDueOn(hb, fecha)) {
+    // Apuntado un día que no tocaba (se cambiaron los días después): cuenta si suma.
+    return v && !isHoldHabit(hb) && habitOk(hb, fecha) ? 'done' : null;
+  }
   const hoy = today();
   if (fecha > hoy) return 'future';
+  const ok = habitOk(hb, fecha);
+  if (isHoldHabit(hb)) {
+    if (!ok) return 'missed';
+    return fecha === hoy ? 'holding' : 'done';
+  }
+  if (ok) return 'done';
+  if (v > 0) return 'partial';
   return fecha === hoy ? 'pending' : 'missed';
 }
 
 /** Los hábitos de un día, con lo que pasó con cada uno. */
 export function habitsOn(fecha) {
-  return habits()
-    .filter((hb) => habitDueOn(hb, fecha) || habitDoneOn(hb, fecha))
-    .sort(ordenHabitos)
-    .map((hb) => ({ habit: hb, state: habitState(hb, fecha) }));
+  return habits().slice().sort(ordenHabitos)
+    .map((hb) => ({ habit: hb, state: habitState(hb, fecha) }))
+    .filter((x) => x.state !== null);
 }
 
+const PENDIENTE = new Set(['pending', 'partial']);
 export const habitsToday = () => habitsOn(today());
-export const pendingHabitsToday = () => habitsToday().filter((x) => x.state === 'pending');
-export const missedHabitsYesterday = () => habitsOn(addDays(today(), -1)).filter((x) => x.state === 'missed');
+/** Lo que aún pide hacer algo hoy. Dejarlo y límite no piden nada: piden no caer. */
+export const pendingHabitsToday = () => habitsToday().filter((x) => PENDIENTE.has(x.state));
+export const keptHabitsToday = () => habitsToday().filter((x) => x.state === 'done' || x.state === 'holding');
+export const missedHabitsYesterday = () => habitsOn(addDays(today(), -1)).filter((x) => x.state === 'missed' || x.state === 'partial');
 
-/** Hoy, con la hora del aviso ya pasada y sin hacer. */
+/** Hoy, con la hora del aviso ya pasada y aún por hacer. */
 export function lateHabitsToday() {
   const d = new Date();
   const ahora = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   return pendingHabitsToday().filter((x) => x.habit.time && x.habit.time <= ahora);
 }
+
+/** Los avisos de hoy que ya deberían haber sonado: lo mismo que avisa el servidor. */
+export function habitRemindersDue() {
+  const d = new Date();
+  const ahora = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return habitsToday()
+    .filter((x) => x.habit.time && x.habit.time <= ahora && ['pending', 'partial', 'holding'].includes(x.state))
+    .map((x) => x.habit);
+}
+
+/* ---------------------------------- Textos -------------------------------- */
+
+export const fmtAmount = (n) => (Number.isInteger(n) ? String(n) : String(redondeo(n)).replace('.', ','));
+
+/** «20 páginas», «máx. 2 cafés», «dejarlo». */
+export function habitGoalLabel(hb) {
+  const u = hb.unit ? ` ${hb.unit}` : '';
+  if (hb.kind === 'amount') return `${fmtAmount(hb.target || 0)}${u}`;
+  if (hb.kind === 'limit') return `máx. ${fmtAmount(hb.target || 0)}${u}`;
+  if (hb.kind === 'quit') return 'dejarlo';
+  return '';
+}
+
+/** Lo de un día, en palabras: «12 de 20 páginas», «limpio», «caíste». */
+export function habitDayLabel(hb, fecha) {
+  const v = habitValue(hb, fecha);
+  const u = hb.unit ? ` ${hb.unit}` : '';
+  if (hb.kind === 'amount') return `${fmtAmount(v)} de ${fmtAmount(hb.target || 0)}${u}`;
+  if (hb.kind === 'limit') return `${fmtAmount(v)} de máx. ${fmtAmount(hb.target || 0)}${u}`;
+  if (hb.kind === 'quit') return v >= 1 ? 'caíste' : 'limpio';
+  return v >= 1 ? 'hecho' : 'sin hacer';
+}
+
+/* -------------------------------- Los topes ------------------------------- */
 
 /** Cuántos hábitos activos tiene ya un día de la semana. */
 export const habitLoad = (dia, { except = null } = {}) => habits()
@@ -1199,6 +1357,8 @@ export function fullDaysMessage(llenos) {
   return `${nombres.length > 1 ? 'Los días' : 'El'} ${lista} ya ${nombres.length > 1 ? 'tienen' : 'tiene'} ${HABITS_PER_DAY} hábitos. Quita o pausa uno antes.`;
 }
 
+const categoriaOcupada = (owner, catId) => `«${owner.title}» ya ocupa ${habitCategoryLabel(catId)}. Un hábito por categoría: elige otra o pausa ese.`;
+
 export function habitDaysLabel(dias) {
   if (dias.length === 7) return 'TODOS LOS DÍAS';
   if (dias.length === 5 && [1, 2, 3, 4, 5].every((d) => dias.includes(d))) return 'DE LUNES A VIERNES';
@@ -1208,8 +1368,13 @@ export function habitDaysLabel(dias) {
 
 function validarHabito(hb, { except = null } = {}) {
   if (!hb.title) return { error: 'Ponle nombre: qué haces.' };
+  if (!hb.category || !habitCategoryById(hb.category)) return { error: 'Elige una categoría.' };
+  if (hb.kind === 'amount' && !hb.target) return { error: 'Pon el objetivo: al menos cuánto.' };
+  if (hb.kind === 'limit' && !hb.target) return { error: 'Pon el límite: como mucho cuánto. Si es cero, es DEJARLO.' };
   if (!hb.days.length) return { error: 'Elige al menos un día.' };
   if (!isHabitPaused(hb)) {
+    const owner = categoryOwner(hb.category, { except });
+    if (owner) return { error: categoriaOcupada(owner, hb.category), category: true };
     const llenos = fullDays(hb.days, { except });
     if (llenos.length) return { error: fullDaysMessage(llenos), full: llenos };
   }
@@ -1217,40 +1382,66 @@ function validarHabito(hb, { except = null } = {}) {
 }
 
 const guardarHabitos = (lista) => saveSettings({ habits: lista });
+const CAMPOS = ['title', 'cue', 'days', 'time', 'category', 'kind', 'target', 'unit'];
 
 export async function createHabit(datos) {
-  const hb = normHabit({ title: datos.title, cue: datos.cue, days: datos.days, time: datos.time, start: today() });
+  const base = {};
+  for (const k of CAMPOS) if (k in datos) base[k] = datos[k];
+  const hb = normHabit({ ...base, start: today() });
   const fallo = validarHabito(hb);
   if (fallo) return fallo;
   await guardarHabitos([...habits(), hb]);
   return { habit: hb };
 }
 
-/** Solo se edita lo que define el hábito; lo hecho y las pausas no se tocan aquí. */
+/**
+ * Solo se edita lo que define el hábito. Cambiar el tipo empieza de cero:
+ * un 1 apuntado no significa lo mismo en «sí o no» que en «dejarlo».
+ */
 export async function updateHabit(id, patch) {
   const actual = habitById(id);
   if (!actual) return { error: 'Ese hábito ya no existe.' };
   const cambios = {};
-  for (const k of ['title', 'cue', 'days', 'time']) if (k in patch) cambios[k] = patch[k];
-  const hb = normHabit({ ...actual, ...cambios });
+  for (const k of CAMPOS) if (k in patch) cambios[k] = patch[k];
+  const otroTipo = 'kind' in cambios && cambios.kind !== actual.kind;
+  const hb = normHabit({ ...actual, ...cambios, ...(otroTipo ? { log: {}, start: today() } : {}) });
   const fallo = validarHabito(hb, { except: id });
   if (fallo) return fallo;
   await guardarHabitos(habits().map((x) => (x.id === id ? hb : x)));
-  return { habit: hb };
+  return { habit: hb, reset: otroTipo };
 }
 
 export async function removeHabit(id) {
   await guardarHabitos(habits().filter((x) => x.id !== id));
 }
 
-/** Marca o desmarca un día. El futuro no se marca: todavía no ha pasado. */
-export async function toggleHabit(id, fecha = today()) {
+async function escribirDia(id, fecha, valor) {
   const hb = habitById(id);
   if (!hb || !FECHA.test(fecha) || fecha > today()) return null;
-  const hecho = habitDoneOn(hb, fecha);
-  const done = hecho ? hb.done.filter((d) => d !== fecha) : [...hb.done, fecha].sort();
-  await guardarHabitos(habits().map((x) => (x.id === id ? { ...x, done } : x)));
-  return !hecho;
+  const log = { ...hb.log };
+  const n = redondeo(Number(valor) || 0);
+  if (n > 0) log[fecha] = Math.min(n, 100000);
+  else delete log[fecha];
+  await guardarHabitos(habits().map((x) => (x.id === id ? { ...x, log } : x)));
+  return habitById(id);
+}
+
+/** Sí o no, y dejarlo (caer o no): un toque marca, otro desmarca. El futuro no se marca. */
+export async function toggleHabit(id, fecha = today()) {
+  const hb = habitById(id);
+  if (!hb) return null;
+  const marcado = habitValue(hb, fecha) >= 1;
+  const nuevo = await escribirDia(id, fecha, marcado ? 0 : 1);
+  return nuevo ? !marcado : null;
+}
+
+/** Cantidad y límite: lo que llevas ese día. */
+export const setHabitValue = (id, fecha, valor) => escribirDia(id, fecha, Math.max(0, Number(valor) || 0));
+
+export async function addHabitValue(id, fecha, delta) {
+  const hb = habitById(id);
+  if (!hb) return null;
+  return escribirDia(id, fecha, Math.max(0, habitValue(hb, fecha) + delta));
 }
 
 export async function pauseHabit(id) {
@@ -1260,10 +1451,12 @@ export async function pauseHabit(id) {
   await guardarHabitos(habits().map((x) => (x.id === id ? { ...x, pauses } : x)));
 }
 
-/** Volver de una pausa también respeta el tope: si sus días están llenos, no cabe. */
+/** Volver de una pausa también respeta los topes: el del día y el de la categoría. */
 export async function resumeHabit(id) {
   const hb = habitById(id);
   if (!hb || !isHabitPaused(hb)) return { habit: hb };
+  const owner = hb.category ? categoryOwner(hb.category, { except: id }) : null;
+  if (owner) return { error: categoriaOcupada(owner, hb.category), category: true };
   const llenos = fullDays(hb.days, { except: id });
   if (llenos.length) return { error: fullDaysMessage(llenos), full: llenos };
   const ayer = addDays(today(), -1);
@@ -1275,26 +1468,27 @@ export async function resumeHabit(id) {
   return { habit: habitById(id) };
 }
 
+/* ------------------------------ Cómo va cada uno -------------------------- */
+
 /**
- * Días seguidos cumpliendo, contando solo los días que tocaba. Hoy suma si ya
- * está hecho y no resta si aún no: el día no ha terminado.
+ * Días seguidos cumpliendo, contando solo los días que tocaba. En sí o no y
+ * cantidad, hoy suma si ya está hecho y no resta si aún no: el día no ha
+ * terminado. En dejarlo y límite, hoy suma mientras no caigas.
  */
 export function habitStreak(hb) {
-  const hechos = new Set(hb.done);
   const hoy = today();
   let n = 0;
   let fecha = hoy;
   for (let i = 0; i < 2000 && fecha >= hb.start; i += 1, fecha = addDays(fecha, -1)) {
     if (!habitDueOn(hb, fecha)) continue;
-    if (hechos.has(fecha)) n += 1;
-    else if (fecha !== hoy) break;
+    if (habitOk(hb, fecha)) n += 1;
+    else if (fecha !== hoy || isHoldHabit(hb)) break;
   }
   return n;
 }
 
-/** De los días que tocaba en los últimos N, cuántos se hizo. */
+/** De los días que tocaba en los últimos N, en cuántos se cumplió. Hoy, solo si ya está decidido. */
 export function habitRate(hb, dias = 30) {
-  const hechos = new Set(hb.done);
   const hoy = today();
   let tocaba = 0;
   let cumplido = 0;
@@ -1302,9 +1496,10 @@ export function habitRate(hb, dias = 30) {
     const fecha = addDays(hoy, -i);
     if (fecha < hb.start) break;
     if (!habitDueOn(hb, fecha)) continue;
-    if (fecha === hoy && !hechos.has(fecha)) continue;
+    const ok = habitOk(hb, fecha);
+    if (fecha === hoy && (isHoldHabit(hb) ? ok : !ok)) continue;
     tocaba += 1;
-    if (hechos.has(fecha)) cumplido += 1;
+    if (ok) cumplido += 1;
   }
   return { done: cumplido, due: tocaba, pct: tocaba ? Math.round((cumplido / tocaba) * 100) : null };
 }

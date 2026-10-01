@@ -1578,6 +1578,79 @@ body.nav-collapsed .nav-grit{display:none}
 .habito-ok{color:var(--ink-2);font-weight:700}
 .habito-late,.cuentas-grit.habito-late{color:var(--warn)}
 
+.habito-cat{color:var(--ink-2);font-weight:700}
+
+/* Cantidad y límite: la cifra manda, con − y + a mano. */
+.habito-cifra:hover,.habito-dejar:hover{border-color:var(--line)}
+.habito-cifra:hover .habito-check,.habito-dejar:hover .habito-check{background:none}
+.habito-cifra.hecho:hover .habito-check{background:var(--ink)}
+.habito-bar{display:block;height:3px;background:var(--line-2);margin-top:8px}
+.habito-bar i{display:block;height:100%;background:var(--ink)}
+.habito-bar.lim i{background:var(--ink-2)}
+.habito.pasado .habito-bar i{background:var(--warn)}
+.habito-ctl{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:7px}
+.habito-step{
+  width:26px;height:26px;flex:0 0 auto;border:1px solid var(--line);background:none;
+  font-family:var(--mono);font-size:15px;line-height:1;color:var(--ink);
+}
+.habito-step:hover{border-color:var(--ink)}
+.habito-num{
+  width:62px;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:4px 6px;
+  font-family:var(--mono);font-size:14px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums;
+}
+.habito-num:focus{outline:none;border-color:var(--ink)}
+.habito-of{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.habito.pasado{border-left-color:var(--warn)}
+.habito.pasado .habito-check{border-color:var(--warn);color:var(--warn)}
+/* Dejarlo: limpio no es «hecho», el día sigue; el visto va en tinta, sin rellenar. */
+.habito.limpio .habito-check{color:var(--ink)}
+.habito-estado{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;font-weight:700;color:var(--ink-2)}
+.habito-fall{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--muted);
+  border:1px solid var(--line);padding:4px 8px;background:none;margin-left:auto;
+}
+.habito-fall:hover{border-color:var(--warn);color:var(--warn)}
+
+/* Formulario: tipo y categoría. */
+.hab-kinds{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.hab-kind{border:1px solid var(--line);padding:9px 4px;background:none;color:var(--ink);text-align:center}
+.hab-kind b{font-family:var(--mono);font-size:10px;letter-spacing:.1em;font-weight:700}
+.hab-kind:hover{border-color:var(--ink)}
+.hab-kind.on,.hab-kind.on:hover{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.hab-cats{display:flex;gap:4px;flex-wrap:wrap}
+.hab-cat{
+  display:flex;flex-direction:column;align-items:flex-start;gap:1px;
+  border:1px solid var(--line);padding:6px 10px;background:none;color:var(--ink);max-width:100%;
+}
+.hab-cat b{font-family:var(--mono);font-size:10px;letter-spacing:.12em;font-weight:700}
+.hab-cat small{font-size:10.5px;color:var(--faint);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hab-cat:hover:not(:disabled){border-color:var(--ink)}
+.hab-cat.on,.hab-cat.on:hover{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.hab-cat.on small{color:var(--bg);opacity:.7}
+.hab-cat.full{opacity:.4;cursor:not-allowed}
+.hab-cat-add{border-style:dashed;color:var(--muted);font-family:var(--mono);font-size:10px;letter-spacing:.12em;justify-content:center}
+.hab-cat-new{margin-top:6px}
+
+/* Gestor de categorías. */
+.hab-catlist{display:flex;flex-direction:column}
+.hab-catrow{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line-2)}
+.hab-catmove{display:flex;gap:2px;flex:0 0 auto}
+.hab-catmove .nav-mini:disabled{opacity:.25;cursor:default}
+.hab-catname{flex:1;min-width:0;padding:6px 8px;font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+.hab-catuse{font-size:12px;color:var(--muted);width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 0 auto}
+.hab-catrow .nav-mini:disabled{opacity:.3;cursor:not-allowed}
+
+/* En la pantalla: la categoría encabeza cada ficha. */
+.hab-card-cat{
+  display:flex;justify-content:space-between;gap:10px;margin-bottom:10px;padding-bottom:6px;
+  border-bottom:1px solid var(--line);
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;font-weight:700;color:var(--ink);
+}
+.hab-card-kind{color:var(--muted);font-weight:400;letter-spacing:.14em}
+.hab-card.nocat .hab-card-cat{color:var(--warn)}
+.hab-free{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:18px}
+.hab-free-l{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--faint);margin-right:4px}
+
 /* El formulario: siete días, cada uno con lo que ya lleva sobre tres. */
 .hab-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
 .hab-day{
@@ -1629,6 +1702,9 @@ body.nav-collapsed .nav-grit{display:none}
 .hab-cell.off{background:var(--line-2);border-color:var(--line-2)}
 .hab-cell.future{border:1px dotted var(--line)}
 .hab-cell.today{outline:1px solid var(--ink);outline-offset:1px}
+.hab-cell.partial{border-color:var(--ink-2);box-shadow:inset 0 -7px 0 var(--ink-2)}
+.hab-cell.holding{border:1px solid var(--ink)}
+.hab-cell.partial.past{border-color:var(--warn)}
 button.hab-cell:hover{border-color:var(--ink)}
 button.hab-cell.done:hover{opacity:.8}
 
@@ -1645,6 +1721,9 @@ button.hab-cell.done:hover{opacity:.8}
 .cal-hab i{display:block;width:6px;height:6px;border:1px solid var(--muted)}
 .cal-hab i.done{background:var(--ink);border-color:var(--ink)}
 .cal-hab i.missed{border-color:var(--warn)}
+.cal-hab i.partial{border-color:var(--ink);box-shadow:inset 0 -3px 0 var(--ink)}
+.cal-hab i.holding{border-color:var(--ink)}
+.cal-check.part{box-shadow:inset 0 -5px 0 var(--ink-2)}
 .cal-legend i.hab{border-left:3px double var(--ink-2)}
 
 /* ------------------------------- Responsive ------------------------------ */
@@ -1673,6 +1752,8 @@ button.hab-cell.done:hover{opacity:.8}
   .cuentas-row{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
   .cuenta-n{font-size:28px}
   .habitos-row{grid-template-columns:1fr}
+  .hab-kinds{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hab-catuse{width:80px}
   .hab-list{grid-template-columns:1fr}
   .hab-tools{gap:14px}
   .cardcfg-fields{grid-template-columns:1fr}

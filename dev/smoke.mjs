@@ -165,14 +165,22 @@ if (process.platform !== 'win32') {
   const dia = new Date().getDay();
   const otroDia = (dia + 1) % 7;
   const manana = (() => { const x = new Date(); x.setDate(x.getDate() + 1); const p = (n) => String(n).padStart(2, '0'); return `${x.getFullYear()}-${p(x.getMonth() + 1)}-${p(x.getDate())}`; })();
-  const base = { cue: '', start: d, done: [], pauses: [], createdAt: new Date().toISOString() };
+  const base = { cue: '', start: d, kind: 'check', log: {}, pauses: [], createdAt: new Date().toISOString() };
   const habitos = [
     { ...base, id: 'h1', title: 'TOCA-Y-AVISA', cue: 'después de comer', days: [dia], time: '00:00' },
-    { ...base, id: 'h2', title: 'YA-HECHO', days: [dia], time: '00:00', done: [d] },
+    { ...base, id: 'h2', title: 'YA-HECHO', days: [dia], time: '00:00', log: { [d]: 1 } },
     { ...base, id: 'h3', title: 'EN-PAUSA', days: [dia], time: '00:00', pauses: [{ from: d, to: null }] },
     { ...base, id: 'h4', title: 'OTRO-DIA', days: [otroDia], time: '00:00' },
     { ...base, id: 'h5', title: 'EMPIEZA-MANANA', days: [dia], time: '00:00', start: manana },
     { ...base, id: 'h6', title: 'SIN-HORA', days: [dia], time: null },
+    // Formato de la primera versión: la lista de días hechos.
+    { ...base, id: 'h7', title: 'HECHO-FORMATO-VIEJO', days: [dia], time: '00:00', log: undefined, done: [d] },
+    { ...base, id: 'h8', title: 'CANTIDAD-A-MEDIAS', kind: 'amount', target: 20, unit: 'páginas', days: [dia], time: '00:00', log: { [d]: 12 } },
+    { ...base, id: 'h9', title: 'CANTIDAD-CUMPLIDA', kind: 'amount', target: 20, days: [dia], time: '00:00', log: { [d]: 20 } },
+    { ...base, id: 'h10', title: 'LIMITE-AGUANTANDO', kind: 'limit', target: 2, unit: 'cafés', days: [dia], time: '00:00', log: { [d]: 1 } },
+    { ...base, id: 'h11', title: 'LIMITE-PASADO', kind: 'limit', target: 2, days: [dia], time: '00:00', log: { [d]: 3 } },
+    { ...base, id: 'h12', title: 'DEJARLO-LIMPIO', kind: 'quit', days: [dia], time: '00:00' },
+    { ...base, id: 'h13', title: 'DEJARLO-CAIDO', kind: 'quit', days: [dia], time: '00:00', log: { [d]: 1 } },
   ];
   fs.writeFileSync(path.join(datos, 'gsd-data.json'), JSON.stringify({ version: 1, tasks: [], projects: [], meta: [{ id: 'settings', habits: habitos }] }));
 
@@ -183,14 +191,17 @@ if (process.platform !== 'win32') {
   });
   const leer = () => (fs.existsSync(registroAvisos) ? fs.readFileSync(registroAvisos, 'utf8') : '');
   try {
-    await prueba('avisa de un hábito a su hora, solo los días que toca y si no está hecho', async () => {
+    await prueba('avisa de un hábito a su hora, solo los días que toca y si queda algo por hacer', async () => {
       // La primera vuelta de avisos es a los 3 s de arrancar.
-      for (let i = 0; i < 100 && !leer().includes('TOCA-Y-AVISA'); i++) await new Promise((r) => setTimeout(r, 100));
+      for (let i = 0; i < 100 && !leer().includes('DEJARLO-LIMPIO'); i++) await new Promise((r) => setTimeout(r, 100));
       await new Promise((r) => setTimeout(r, 500));
       const avisos = leer();
       afirma(avisos.includes('GSD · Hábito') && avisos.includes('TOCA-Y-AVISA'), `no avisó del hábito que tocaba:\n${avisos}`);
       afirma(avisos.includes('después de comer'), 'el aviso no lleva el cuándo y dónde');
-      for (const nombre of ['YA-HECHO', 'EN-PAUSA', 'OTRO-DIA', 'EMPIEZA-MANANA', 'SIN-HORA']) {
+      afirma(avisos.includes('Llevas 12 de 20 páginas'), `el aviso de cantidad no dice cuánto llevas:\n${avisos}`);
+      afirma(avisos.includes('Como mucho 2 cafés · llevas 1'), `el aviso de límite no dice cuánto llevas:\n${avisos}`);
+      afirma(avisos.includes('Hoy no: DEJARLO-LIMPIO'), `el aviso de dejarlo no dice «hoy no»:\n${avisos}`);
+      for (const nombre of ['YA-HECHO', 'EN-PAUSA', 'OTRO-DIA', 'EMPIEZA-MANANA', 'SIN-HORA', 'HECHO-FORMATO-VIEJO', 'CANTIDAD-CUMPLIDA', 'LIMITE-PASADO', 'DEJARLO-CAIDO']) {
         afirma(!avisos.includes(nombre), `avisó de ${nombre}, que no tocaba`);
       }
       const enviados = JSON.parse(fs.readFileSync(path.join(datos, 'avisos-enviados.json'), 'utf8'));

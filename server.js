@@ -372,8 +372,9 @@ async function checkReminders() {
     await notify(t.isOneThing ? 'GSD · Lo único' : 'GSD · Aviso', cuerpo, urgente);
   }
 
-  // Hábitos: a su hora, los días que tocan y solo si hoy aún no está hecho.
-  // Un aviso que no pudo sonar a su hora vale mientras siga siendo ese día.
+  // Hábitos: a su hora, los días que tocan y solo si hoy aún hay algo que hacer
+  // (o que aguantar). Un aviso que no pudo sonar a su hora vale mientras sea ese día.
+  // Tipos: check (sí o no), amount (al menos N), limit (como mucho N), quit (dejarlo).
   const ajustes = (Array.isArray(datos.meta) ? datos.meta : []).find((m) => m && m.id === 'settings') || {};
   const hoy = todayStamp();
   const diaSemana = new Date().getDay();
@@ -381,7 +382,15 @@ async function checkReminders() {
     if (!hb || !hb.id || !/^\d{2}:\d{2}$/.test(hb.time || '')) continue;
     if (!Array.isArray(hb.days) || !hb.days.includes(diaSemana)) continue;
     if (hb.start && hb.start > hoy) continue;
-    if (Array.isArray(hb.done) && hb.done.includes(hoy)) continue;
+    const registro = hb.log && typeof hb.log === 'object' ? hb.log : {};
+    const valor = Number(registro[hoy]) || (Array.isArray(hb.done) && hb.done.includes(hoy) ? 1 : 0);
+    const tipo = ['amount', 'limit', 'quit'].includes(hb.kind) ? hb.kind : 'check';
+    const objetivo = Number(hb.target) || 0;
+    const unidad = hb.unit ? ` ${hb.unit}` : '';
+    // Ya resuelto hoy: hecho, objetivo alcanzado, o ya caído (no queda nada que recordar).
+    if (tipo === 'check' && valor >= 1) continue;
+    if (tipo === 'amount' && valor >= (objetivo || 1)) continue;
+    if ((tipo === 'limit' && valor > objetivo) || (tipo === 'quit' && valor >= 1)) continue;
     if ((Array.isArray(hb.pauses) ? hb.pauses : []).some((p) => p && p.from <= hoy && (!p.to || p.to >= hoy))) continue;
     const clave = `habito|${hb.id}|${hoy}T${hb.time}`;
     if (enviados[clave]) continue;
@@ -392,8 +401,11 @@ async function checkReminders() {
     enviados[clave] = new Date().toISOString();
     cambios = true;
     const tarde = ahora - cuando > 5 * 60 * 1000;
+    const titulo = String(hb.title || '');
     const cuerpo = [
-      String(hb.title || ''),
+      tipo === 'quit' ? `Hoy no: ${titulo}` : titulo,
+      tipo === 'amount' ? `Llevas ${valor} de ${objetivo}${unidad}` : '',
+      tipo === 'limit' ? `Como mucho ${objetivo}${unidad} · llevas ${valor}` : '',
       hb.cue ? String(hb.cue) : '',
       tarde ? `(tocaba a las ${hb.time})` : '',
     ].filter(Boolean).join('\n');
