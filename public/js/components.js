@@ -1116,6 +1116,249 @@ export function countdownStrip(n = 3) {
     h('div', { class: 'cuentas-row' }, items.map(countdownCard)));
 }
 
+/* -------------------------------- Hábitos -------------------------------- */
+
+/*
+ * Un hábito se marca con un toque y se desmarca con otro: no hay nada que
+ * deshacer. Lo que sí hay es memoria: cada día queda apuntado, y la racha
+ * se rompe el primer día que tocaba y no se hizo.
+ */
+
+const horaActual = () => {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
+/** Marcar o desmarcar un día. Solo hoy merece frase; el pasado se corrige y ya. */
+export async function markHabit(id, fecha = today()) {
+  const hecho = await S.toggleHabit(id, fecha);
+  if (hecho === null) return;
+  if (fecha === today()) {
+    if (hecho) toast(`Hecho — ${V.habitDoneLine(S.habitStreak(S.habitById(id)))}`);
+    return;
+  }
+  toast(hecho ? `Apuntado: ${fmtLong(fecha)}.` : `Quitado: ${fmtLong(fecha)}.`);
+}
+
+/** La casilla grande de un hábito, para HOY y para la pantalla de hábitos. */
+export function habitTile(hb, fecha = today()) {
+  const hecho = S.habitDoneOn(hb, fecha);
+  const racha = S.habitStreak(hb);
+  const tarde = fecha === today() && !hecho && hb.time && hb.time <= horaActual();
+
+  return h('button', {
+    class: `habito${hecho ? ' hecho' : ''}${tarde ? ' tarde' : ''}`,
+    type: 'button',
+    'aria-pressed': hecho ? 'true' : 'false',
+    title: hecho ? 'Hecho. Pulsa para desmarcarlo.' : 'Pulsa cuando lo hayas hecho.',
+    onclick: () => markHabit(hb.id, fecha),
+  },
+    h('span', { class: 'habito-check', text: hecho ? '✓' : '' }),
+    h('span', { class: 'habito-body' },
+      h('span', { class: 'habito-t', text: hb.title }),
+      hb.cue ? h('span', { class: 'habito-cue', text: hb.cue }) : null,
+      h('span', { class: 'habito-meta' },
+        hecho ? h('span', { class: 'habito-ok', text: 'HECHO' }) : null,
+        hb.time ? h('span', { class: tarde ? 'habito-late' : '', text: tarde ? `◷ ${hb.time} · YA PASÓ` : `◷ ${hb.time}` }) : null,
+        racha ? h('span', { text: `${racha} ${racha === 1 ? 'DÍA' : 'DÍAS'} DE RACHA` }) : null)));
+}
+
+/** Los hábitos de hoy en HOY: tres como mucho, uno al lado del otro. */
+export function habitStrip() {
+  const items = S.habitsToday();
+  if (!items.length) return null;
+  const hechos = items.filter((x) => x.state === 'done').length;
+  const tarde = S.lateHabitsToday().length;
+  const siguiente = items.find((x) => x.state === 'pending' && x.habit.time && x.habit.time > horaActual());
+  let dato = '';
+  if (hechos === items.length) dato = 'TODOS HECHOS';
+  else if (tarde) dato = `${tarde} CON LA HORA PASADA`;
+  else if (siguiente) dato = `SIGUIENTE AVISO ${siguiente.habit.time}`;
+
+  return h('section', { class: 'habitos' },
+    h('div', { class: 'cuentas-head' },
+      h('span', { class: 'cuentas-title', text: 'HÁBITOS' }),
+      h('span', { class: `habitos-n${hechos === items.length ? ' ok' : ''}`, text: `${hechos}/${items.length}` }),
+      dato ? h('span', { class: `cuentas-grit${tarde && hechos < items.length ? ' habito-late' : ''}`, text: dato }) : null,
+      h('button', {
+        class: 'unico-link', style: 'margin-left:auto;color:var(--muted)', type: 'button', text: 'VER TODOS',
+        onclick: () => { location.hash = '#/habitos'; },
+      })),
+    h('div', { class: 'habitos-row' }, items.map((x) => habitTile(x.habit))));
+}
+
+/** Nuevo hábito, si cabe: con los siete días llenos no hay formulario que valga. */
+export function openNewHabit() {
+  if (S.WEEK.every((d) => S.habitLoad(d) >= S.HABITS_PER_DAY)) {
+    toast(`Los siete días tienen ya ${S.HABITS_PER_DAY} hábitos. Quita o pausa uno antes.`);
+    return;
+  }
+  openHabitForm();
+}
+
+export function openHabitForm(existing = null) {
+  const except = existing ? existing.id : null;
+  const pausado = !!existing && S.isHabitPaused(existing);
+  const lleno = (d) => !pausado && S.habitLoad(d, { except }) >= S.HABITS_PER_DAY;
+
+  const titulo = h('input', {
+    class: 'input', type: 'text', maxlength: '60', 'data-autofocus': 'end',
+    placeholder: 'Leer 20 minutos · Correr · 15 minutos de inglés',
+    value: existing ? existing.title : '',
+  });
+  const ancla = h('input', {
+    class: 'input', type: 'text', maxlength: '80',
+    placeholder: 'Después de desayunar · Al llegar a casa · Antes de dormir',
+    value: existing ? existing.cue : '',
+  });
+  const hora = h('input', { class: 'input', type: 'time', value: existing && existing.time ? existing.time : '' });
+
+  let dias = new Set(existing ? existing.days : S.WEEK.filter((d) => !lleno(d)));
+
+  const eco = h('div', { class: 'capture-echo on' });
+  const pintarEco = () => {
+    const lista = S.WEEK.filter((d) => dias.has(d));
+    eco.textContent = lista.length
+      ? `${S.habitDaysLabel(lista)} · ${hora.value ? `aviso a las ${hora.value}` : 'sin aviso'}`
+      : 'Ningún día elegido.';
+  };
+
+  const filaDias = h('div', { class: 'hab-days' });
+  const pintarDias = () => {
+    filaDias.textContent = '';
+    for (const d of S.WEEK) {
+      const carga = S.habitLoad(d, { except }) + (dias.has(d) && !pausado ? 1 : 0);
+      const ocupado = lleno(d) && !dias.has(d);
+      add(filaDias, h('button', {
+        class: `hab-day${dias.has(d) ? ' on' : ''}${ocupado ? ' full' : ''}`,
+        type: 'button',
+        disabled: ocupado,
+        title: ocupado
+          ? `El ${S.DAY_NAME[d]} ya tiene ${S.HABITS_PER_DAY} hábitos`
+          : `${S.DAY_NAME[d]}: ${carga} de ${S.HABITS_PER_DAY}`,
+        onclick: () => {
+          if (dias.has(d)) dias.delete(d);
+          else if (!lleno(d)) dias.add(d);
+          pintarDias();
+          pintarEco();
+        },
+      }, h('b', { text: S.DAY_LETTER[d] }), h('small', { text: pausado ? '—' : `${carga}/${S.HABITS_PER_DAY}` })));
+    }
+  };
+
+  const rapido = (label, conjunto) => h('button', {
+    class: 'date-chip', type: 'button', text: label,
+    onclick: () => {
+      const sinSitio = conjunto.filter(lleno);
+      dias = new Set(conjunto.filter((d) => !lleno(d)));
+      if (sinSitio.length) toast(`Sin sitio: ${sinSitio.map((d) => S.DAY_NAME[d]).join(', ')}.`);
+      pintarDias();
+      pintarEco();
+    },
+  });
+
+  const horas = h('div', { class: 'date-chips' },
+    ['07:00', '08:00', '14:00', '20:00', '22:00'].map((v) => h('button', {
+      class: 'date-chip', type: 'button', text: v,
+      onclick: () => { hora.value = v; pintarEco(); },
+    })),
+    h('button', {
+      class: 'date-chip', type: 'button', text: 'SIN AVISO', dataset: { valor: '' },
+      onclick: () => { hora.value = ''; pintarEco(); },
+    }));
+  hora.addEventListener('change', pintarEco);
+  hora.addEventListener('input', pintarEco);
+
+  pintarDias();
+  pintarEco();
+
+  const fallo = h('div', { class: 'notice notice-warn', style: 'margin-top:12px' });
+  fallo.hidden = true;
+
+  const guardar = async () => {
+    const datos = { title: titulo.value, cue: ancla.value, days: [...dias], time: hora.value || null };
+    const r = existing ? await S.updateHabit(existing.id, datos) : await S.createHabit(datos);
+    if (r.error) {
+      fallo.textContent = r.error;
+      fallo.hidden = false;
+      if (!titulo.value.trim()) titulo.focus();
+      return;
+    }
+    closeTop();
+    toast(existing ? 'Hábito guardado.' : 'Hábito creado. Hoy ya cuenta.');
+  };
+
+  const body = h('div', {},
+    h('div', { class: 'field' }, h('label', { class: 'label', text: 'Qué haces' }), titulo),
+    h('div', { class: 'field' },
+      h('label', { class: 'label', text: 'Cuándo y dónde (opcional)' }), ancla,
+      h('div', { class: 'check-note', style: 'margin-top:6px', text: 'Atarlo a algo que ya haces es lo que hace que se haga.' })),
+    h('div', { class: 'field' },
+      h('label', { class: 'label', text: `Qué días · como mucho ${S.HABITS_PER_DAY} hábitos por día` }),
+      filaDias,
+      h('div', { class: 'date-chips' },
+        rapido('TODOS', S.WEEK),
+        rapido('DE LUNES A VIERNES', [1, 2, 3, 4, 5]),
+        rapido('FINES DE SEMANA', [6, 0]))),
+    h('div', { class: 'field' },
+      h('label', { class: 'label', text: 'Aviso (opcional)' }), hora, horas,
+      h('div', { class: 'check-note', style: 'margin-top:6px', text: 'Llega como notificación del sistema, solo los días que toca y solo si aún no lo has hecho. Hace falta que GSD esté en marcha; el navegador puede estar cerrado.' })),
+    eco,
+    pausado ? h('div', { class: 'notice', style: 'margin-top:12px' },
+      h('div', { class: 'notice-title', text: 'EN PAUSA' }),
+      h('div', { class: 'notice-body', text: 'No avisa ni cuenta. Al retomarlo tiene que caber: tres por día como mucho.' })) : null,
+    fallo,
+    h('div', { class: 'micro', style: 'margin-top:14px', text: 'UN HÁBITO NO ES UNA TAREA: NO VA A LA BANDEJA NI SE POSPONE. ESE DÍA SE HACE O NO SE HACE.' }));
+
+  body.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); guardar(); } });
+
+  const pausar = existing
+    ? h('button', {
+      class: 'btn btn-ghost', type: 'button', text: pausado ? 'RETOMAR' : 'PAUSAR',
+      title: pausado ? 'Vuelve a contar desde hoy' : 'Deja de avisar y de contar, sin borrar lo apuntado',
+      onclick: async () => {
+        if (pausado) {
+          const r = await S.resumeHabit(existing.id);
+          if (r.error) { fallo.textContent = r.error; fallo.hidden = false; return; }
+          closeTop();
+          toast('Retomado. Cuenta desde hoy.');
+        } else {
+          await S.pauseHabit(existing.id);
+          closeTop();
+          toast('En pausa. Lo apuntado se queda.');
+        }
+      },
+    })
+    : null;
+
+  openSheet(sheet({
+    title: existing ? 'Hábito' : 'Nuevo hábito',
+    body,
+    foot: [
+      existing
+        ? h('button', {
+          class: 'btn btn-ghost btn-warn', type: 'button', text: 'ELIMINAR',
+          onclick: () => {
+            closeTop();
+            confirmSheet({
+              title: 'Eliminar el hábito',
+              body: `${existing.title}\n\nSe borra con todo lo apuntado (${existing.done.length} ${existing.done.length === 1 ? 'día hecho' : 'días hechos'}). Si solo quieres parar un tiempo, ponlo en pausa.`,
+              confirmText: 'ELIMINAR',
+              hold: existing.done.length > 0,
+              warn: true,
+              onConfirm: () => S.removeHabit(existing.id),
+            });
+          },
+        })
+        : null,
+      pausar,
+      h('div', { class: 'spacer' }),
+      h('button', { class: 'btn btn-ghost', type: 'button', text: 'CANCELAR', onclick: closeTop }),
+      h('button', { class: 'btn btn-primary', type: 'button', text: existing ? 'GUARDAR' : 'CREAR', onclick: guardar }),
+    ],
+  }));
+}
+
 /* ---------------------------- Captura rapida ----------------------------- */
 
 /**

@@ -147,6 +147,62 @@ try {
   fs.rmSync(DATOS, { recursive: true, force: true });
 }
 
+/* --------------------------- Avisos de hábitos ---------------------------- */
+
+// Se sustituye notify-send por un guion que apunta cada aviso en un fichero:
+// así se comprueba qué avisaría el servidor sin mandar nada al escritorio.
+// En Windows el aviso va por PowerShell y no se puede interceptar así.
+if (process.platform !== 'win32') {
+  const caja = fs.mkdtempSync(path.join(os.tmpdir(), 'gsd-avisos-'));
+  const bin = path.join(caja, 'bin');
+  const datos = path.join(caja, 'datos');
+  const registroAvisos = path.join(caja, 'avisos.log');
+  fs.mkdirSync(bin);
+  fs.mkdirSync(datos);
+  fs.writeFileSync(path.join(bin, 'notify-send'), `#!/bin/sh\nprintf '%s\\n' "$*" >> '${registroAvisos}'\n`, { mode: 0o755 });
+
+  const d = hoy();
+  const dia = new Date().getDay();
+  const otroDia = (dia + 1) % 7;
+  const manana = (() => { const x = new Date(); x.setDate(x.getDate() + 1); const p = (n) => String(n).padStart(2, '0'); return `${x.getFullYear()}-${p(x.getMonth() + 1)}-${p(x.getDate())}`; })();
+  const base = { cue: '', start: d, done: [], pauses: [], createdAt: new Date().toISOString() };
+  const habitos = [
+    { ...base, id: 'h1', title: 'TOCA-Y-AVISA', cue: 'después de comer', days: [dia], time: '00:00' },
+    { ...base, id: 'h2', title: 'YA-HECHO', days: [dia], time: '00:00', done: [d] },
+    { ...base, id: 'h3', title: 'EN-PAUSA', days: [dia], time: '00:00', pauses: [{ from: d, to: null }] },
+    { ...base, id: 'h4', title: 'OTRO-DIA', days: [otroDia], time: '00:00' },
+    { ...base, id: 'h5', title: 'EMPIEZA-MANANA', days: [dia], time: '00:00', start: manana },
+    { ...base, id: 'h6', title: 'SIN-HORA', days: [dia], time: null },
+  ];
+  fs.writeFileSync(path.join(datos, 'gsd-data.json'), JSON.stringify({ version: 1, tasks: [], projects: [], meta: [{ id: 'settings', habits: habitos }] }));
+
+  const puertoAvisos = await puertoLibre();
+  const conAvisos = spawn(process.execPath, [path.join(RAIZ, 'server.js'), '--port', String(puertoAvisos)], {
+    env: { ...process.env, GSD_DATA_DIR: datos, PATH: `${bin}${path.delimiter}${process.env.PATH}` },
+    stdio: 'ignore',
+  });
+  const leer = () => (fs.existsSync(registroAvisos) ? fs.readFileSync(registroAvisos, 'utf8') : '');
+  try {
+    await prueba('avisa de un hábito a su hora, solo los días que toca y si no está hecho', async () => {
+      // La primera vuelta de avisos es a los 3 s de arrancar.
+      for (let i = 0; i < 100 && !leer().includes('TOCA-Y-AVISA'); i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 500));
+      const avisos = leer();
+      afirma(avisos.includes('GSD · Hábito') && avisos.includes('TOCA-Y-AVISA'), `no avisó del hábito que tocaba:\n${avisos}`);
+      afirma(avisos.includes('después de comer'), 'el aviso no lleva el cuándo y dónde');
+      for (const nombre of ['YA-HECHO', 'EN-PAUSA', 'OTRO-DIA', 'EMPIEZA-MANANA', 'SIN-HORA']) {
+        afirma(!avisos.includes(nombre), `avisó de ${nombre}, que no tocaba`);
+      }
+      const enviados = JSON.parse(fs.readFileSync(path.join(datos, 'avisos-enviados.json'), 'utf8'));
+      afirma(Object.keys(enviados).some((k) => k.startsWith('habito|h1|')), 'no apuntó el aviso enviado: lo repetiría');
+    });
+  } finally {
+    conAvisos.kill();
+    await new Promise((r) => setTimeout(r, 300));
+    fs.rmSync(caja, { recursive: true, force: true });
+  }
+}
+
 for (const r of resultados) console.log(`${r.ok ? '  ✓' : '  ✗'} ${r.nombre}${r.ok ? '' : `\n      ${r.motivo}`}`);
 const malas = resultados.filter((r) => !r.ok).length;
 console.log(malas ? `\n${malas} de ${resultados.length} pruebas fallan.` : `\nSERVIDOR OK — ${resultados.length} pruebas en ${process.platform}.`);

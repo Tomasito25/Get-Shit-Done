@@ -207,6 +207,8 @@ llevan por todo lo que tienes para que nada se quede olvidado.
 | **Fecha tope** | El último día en que sirve hacerlo. No es lo mismo que *cuándo lo haces*. |
 | **Aviso** | Una notificación en tu escritorio, a la hora que elijas. |
 | **Cuenta atrás** | Una fecha que no se mueve —un examen, una entrega, un viaje— con los días que faltan. No es una tarea: no se completa. |
+| **Hábito** | Algo pequeño que haces los días que toca, pase lo que pase: leer, entrenar, repasar. Como mucho tres por día. No es una tarea: se marca hecho ese día y queda apuntado. |
+| **Racha** | Los días seguidos que has cumplido un hábito, contando solo los días que tocaba. |
 | **Enfoque** | Pantalla completa con una sola tarea, sin nada más. |
 | **Trabajo profundo** | Un bloque de tiempo largo y protegido para concentrarte. |
 
@@ -223,6 +225,7 @@ Es lo primero que ves. De arriba abajo:
    orden: **lo único** → **lo que arrastras** de otros días → **tus compromisos** → **lo que vence hoy**.
    Si no hay nada decidido, te pide que elijas.
 3. **El día.** Una línea con cuántos compromisos llevas cumplidos y cuánto trabajo profundo has hecho.
+   Debajo, **tus hábitos de hoy** (un toque los marca) y las **cuentas atrás** más cercanas.
 4. **Después.** El resto de tareas de hoy, numeradas.
 5. **Vence pronto** y **Bandeja.** Lo que tiene la fecha tope encima y lo que falta por decidir.
 6. **El resto del sistema**, plegado: en espera, lo que queda para otros días y tus anotaciones fijadas.
@@ -303,6 +306,28 @@ no salen en ninguna lista de trabajo y no cuentan como nada pendiente. Solo dice
 - Cuando pasan se quedan un tiempo a la vista («PASÓ HACE 2 DÍAS») y se quitan todas de golpe
   con un botón.
 
+### HÁBITOS — lo que haces sin negociarlo
+
+Lo pequeño que se repite: leer veinte minutos, entrenar, repasar inglés. **Como mucho tres por
+día**: con un cuarto, los cuatro salen peor. Si un día ya tiene tres, no se puede elegir para otro
+hasta que quites o pauses uno.
+
+- **Se crean** en HÁBITOS → **+ NUEVO HÁBITO**: qué haces, **cuándo y dónde** («después de
+  desayunar»: atarlo a algo que ya haces es lo que hace que se haga), **qué días** y un **aviso**
+  opcional. Cada día enseña cuántos hábitos lleva ya, sobre tres.
+- **Se marcan** en HOY, con un toque, o en HÁBITOS (teclas `1`, `2`, `3`). Otro toque lo desmarca.
+- **El aviso** llega como notificación del sistema a la hora elegida, **solo los días que toca y
+  solo si aún no lo has hecho**. Hace falta que GSD esté en marcha; el navegador puede estar
+  cerrado. Si el ordenador estaba apagado a esa hora, avisa al encenderlo, mientras sea ese día.
+- **Cada hábito enseña** su **racha** (días seguidos), cuántos de los últimos 30 días que tocaba
+  lo hiciste, y las **últimas ocho semanas** en una rejilla: lleno es hecho, borde rojo es que tocaba
+  y no se hizo, gris es que no tocaba.
+- **Un día olvidado se corrige** pulsando su casilla en la rejilla o en el calendario. El futuro
+  no se marca.
+- **Pausar** un hábito lo deja sin avisos y sin contar, sin borrar lo apuntado: los días en pausa
+  no suman ni rompen la racha. Al retomarlo tiene que caber en sus días.
+- **No son tareas**: no pasan por la bandeja, no se posponen ni se arrastran. Ese día se hizo o no.
+
 ### CALENDARIO — planificar la semana
 
 ![Calendario: semana con bandejas de vencidas y sin día](docs/calendario.png)
@@ -310,6 +335,10 @@ no salen en ninguna lista de trabajo y no cuentan como nada pendiente. Solo dice
 Tres vistas: **SEMANA**, **MES** y **AGENDA** (las próximas tres semanas en lista). Cada día enseña
 lo que piensas hacer, sus **fechas tope** (en rojo), las **cuentas atrás** (◆), sus **avisos** (◷), a quién toca **preguntar**
 (→) y, con **VER LO HECHO**, lo que cerraste.
+
+Los **hábitos** van en cada día que toca: en la semana, al pie de cada día; en el mes, un cuadrado
+por hábito (lleno si se hizo); en la agenda, los de hoy; y en el detalle de un día, con su
+casilla para marcarlos. Hoy y los días pasados se marcan desde ahí.
 
 - **Arrastra** una tarea a otro día para cambiarla de fecha. Escribe en **+ añadir** para crear
   una tarea directamente en ese día.
@@ -436,6 +465,7 @@ cosas que no tienen tecla.
 | `O` | Elegir lo único | | `W` | En espera |
 | `S` | Algún día | | `A` | Anotaciones |
 | `C` | Calendario | | `R` | Revisión semanal |
+| `H` | Hábitos | | `1`–`3` | Hábitos: marcar el de hoy |
 | `M` | Mover la tarjeta con el foco | | `←` `→` | Calendario: semana o mes anterior / siguiente |
 
 ---
@@ -528,7 +558,7 @@ directo (`GSD.cmd uninstall` o `./start.sh uninstall`) y borra la carpeta.
   una copia en disco con escritura atómica, versión anterior, copia diaria y una copia de
   seguridad aparte si alguna vez llega un estado vacío habiendo datos.
 - **Avisos del sistema** lanzados por el servidor: `notify-send` en Linux, notificaciones
-  nativas vía Windows PowerShell en Windows.
+  nativas vía Windows PowerShell en Windows. Los de las tareas y los de los hábitos.
 
 ### Estructura
 
@@ -590,6 +620,8 @@ Task      id · title · status · projectId · context · dueDate · deadline �
 Project   id · code · name · outcome · folderId · status · pausedUntil · createdAt
 Folder    id · name · createdAt                      (guardadas en los ajustes)
 Countdown id · title · date · time · taskId · projectId · createdAt   (en los ajustes)
+Habit     id · title · cue · days (0–6) · time · start · done (fechas) · pauses ({from, to})
+          · createdAt                                                    (en los ajustes)
 Ajustes   … · cards (qué enseñan las tarjetas) · boardGroup · calendarView
 Waiting   id · taskId · person · description · reviewDate
 Session   id · taskId · kind · plannedMin · startedAt · endedAt · minutes · note

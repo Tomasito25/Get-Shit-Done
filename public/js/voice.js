@@ -259,3 +259,22 @@ export function gritCountdown(dias) {
   if (dias <= 14) return "THE CLOCK DOESN'T CARE HOW YOU FEEL.";
   return "IT'S FAR. IT WON'T STAY FAR.";
 }
+
+/* -------------------------------- HÁBITOS -------------------------------- */
+
+export function gritHabits({ total = 0, pending = 0, done = 0, missedYesterday = 0, late = 0 } = {}) {
+  if (!total) return 'YOU ARE WHAT YOU DO EVERY DAY. NOT WHAT YOU DID ONCE.';
+  if (missedYesterday && pending) return 'YOU MISSED YESTERDAY. NEVER MISS TWICE.';
+  if (late) return 'THE TIME CAME AND WENT. DO IT ANYWAY.';
+  if (pending && !done) return "DON'T THINK. DON'T NEGOTIATE. DO IT.";
+  if (pending) return 'NOT DONE UNTIL ALL OF IT IS DONE.';
+  if (done) return 'DONE TODAY. TOMORROW IT COUNTS FROM ZERO AGAIN.';
+  return 'NOTHING DUE TODAY. SHOW UP TOMORROW ANYWAY.';
+}
+
+export function habitDoneLine(racha) {
+  if (racha >= 30) return `${racha} DAYS. THIS IS WHO YOU ARE NOW.`;
+  if (racha >= 7) return `${racha} IN A ROW. DON'T GET COMFORTABLE.`;
+  if (racha >= 2) return `${racha} IN A ROW. AGAIN TOMORROW.`;
+  return 'DONE. SHOW UP AGAIN TOMORROW.';
+}

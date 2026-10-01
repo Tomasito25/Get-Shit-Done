@@ -21,6 +21,7 @@ import * as lists from './views/lists.js';
 import * as projects from './views/projects.js';
 import * as board from './views/board.js';
 import * as calendar from './views/calendar.js';
+import * as habits from './views/habits.js';
 import * as notes from './views/notes.js';
 import * as review from './views/review.js';
 import * as data from './views/data.js';
@@ -32,6 +33,7 @@ const NAV = [
   { hash: '#/hoy', label: 'HOY', short: 'HOY', key: 'T', count: () => S.todayList().length + S.inbox().length },
   { hash: '#/tablero', label: 'TABLERO', short: 'TAB', key: 'B', count: () => S.nextActions().length },
   { hash: '#/proyectos', label: 'PROYECTOS', short: 'PRO', key: 'P', count: () => S.activeProjects().length },
+  { hash: '#/habitos', label: 'HÁBITOS', short: 'HÁB', key: 'H', count: () => S.pendingHabitsToday().length },
   { sep: true },
   { hash: '#/next', label: 'SIGUIENTES ACCIONES', short: 'SIG' },
   { hash: '#/waiting', label: 'EN ESPERA', short: 'ESP', key: 'W', count: () => S.waitingList().length },
@@ -61,6 +63,7 @@ function resolve() {
     case 'someday': return { view: lists.someday, nav: '#/someday' };
     case 'notas': return { view: notes.render, nav: '#/notas' };
     case 'calendario': return { view: calendar.render, nav: '#/calendario' };
+    case 'habitos': return { view: habits.render, nav: '#/habitos' };
     case 'review': return { view: review.render, nav: '#/review' };
     case 'datos': return { view: data.render, nav: '#/datos' };
     case 'config': return { view: config.render, nav: '#/config' };
@@ -160,7 +163,7 @@ const cursorTask = () => {
 const GO = {
   t: '#/hoy', i: '#/inbox', b: '#/tablero', p: '#/proyectos',
   w: '#/waiting', s: '#/someday', c: '#/calendario', r: '#/review',
-  a: '#/notas',
+  a: '#/notas', h: '#/habitos',
 };
 
 function startFocus() {
@@ -254,6 +257,7 @@ const ATAJOS = [
       ['T', 'Hoy: qué hago ahora', '#/hoy'],
       ['B', 'Tablero', '#/tablero'],
       ['P', 'Proyectos', '#/proyectos'],
+      ['H', 'Hábitos: los de hoy y cómo va cada uno', '#/habitos'],
       ['I', 'Bandeja: aclarar lo capturado', '#/inbox'],
       ['W', 'En espera: lo que depende de otros', '#/waiting'],
       ['S', 'Algún día', '#/someday'],
@@ -286,6 +290,7 @@ const ATAJOS = [
     items: [
       ['0 – 6', 'Aclarar la bandeja: hacerla, eliminar, anotar, algún día, delegar, programar, siguiente acción'],
       ['1 – 6', 'Algún día, decidiendo una a una'],
+      ['1 – 3', 'Hábitos: marcar el primero, el segundo o el tercero de hoy'],
       ['Esc', 'Salir de lo que estés: capa, aclarado o decisión'],
     ],
   },
@@ -298,6 +303,8 @@ const ATAJOS = [
       ['·', 'Convertir en anotación: en la ficha, ES UNA ANOTACIÓN'],
       ['·', 'Fijar una anotación para verla en HOY: el rombo ◇'],
       ['·', 'Cuenta atrás para una fecha: en CALENDARIO, o en la ficha de una tarea'],
+      ['·', 'Marcar un hábito: en HOY; un día olvidado, en HÁBITOS o en CALENDARIO'],
+      ['·', 'Aviso de un hábito: en su ficha, con la hora (solo si aún no lo has hecho)'],
       ['·', 'Pausar un proyecto: en su tarjeta o en su tablero'],
       ['·', 'Mover un proyecto de carpeta: botón CARPETA de su tarjeta'],
       ['·', 'Cambiar un día en el calendario: arrastrar la tarea'],
@@ -339,7 +346,7 @@ const sinTildes = (x) => String(x).toLowerCase().normalize('NFD').replace(/[̀-�
 function openHelp() {
   const lista = h('div', { class: 'help-cols' });
   const sintaxis = h('div', { class: 'help-syntax' });
-  const vacio = h('div', { class: 'empty', text: 'Nada con esa palabra. Prueba con: hoy, aviso, proyecto, columna, anotación.' });
+  const vacio = h('div', { class: 'empty', text: 'Nada con esa palabra. Prueba con: hoy, aviso, proyecto, hábito, anotación.' });
   vacio.hidden = true;
 
   const pintar = (q = '') => {
@@ -469,6 +476,17 @@ async function vigilarAvisos() {
         toast(`Aviso: ${t.title}`);
       }
     }
+    // Hábitos: el de hoy, a su hora, solo si aún no está hecho.
+    for (const { habit: hb } of S.lateHabitsToday()) {
+      const clave = `habito|${hb.id}|${iso(ahora)}T${hb.time}`;
+      if (yaVisto(clave)) continue;
+      marcar(clave);
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('GSD · Hábito', { body: [hb.title, hb.cue].filter(Boolean).join('\n') });
+      } else {
+        toast(`Hábito: ${hb.title}`);
+      }
+    }
   };
   if ('Notification' in window && Notification.permission === 'default') {
     document.addEventListener('pointerdown', () => { Notification.requestPermission().catch(() => {}); }, { once: true });
@@ -515,6 +533,16 @@ async function main() {
     render();
   };
   setInterval(vigilarDia, 60 * 1000);
+
+  // La hora de un hábito llega con la página abierta: se pinta como pasada
+  // sin esperar a otro cambio. Nunca mientras se escribe o hay una capa abierta.
+  let tardeAntes = S.lateHabitsToday().length;
+  setInterval(() => {
+    const tarde = S.lateHabitsToday().length;
+    if (tarde === tardeAntes) return;
+    tardeAntes = tarde;
+    if (!isTyping() && !anyOpen()) render();
+  }, 60 * 1000);
   addEventListener('focus', vigilarDia);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) vigilarDia(); });
 

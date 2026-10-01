@@ -6,6 +6,7 @@
  *
  *   1. AHORA            una cosa, enorme, con un boton para empezarla
  *   2. el dia           un dato, no un panel
+ *      habitos          los de hoy, tres como mucho, un toque cada uno
  *   3. lo que arrastras cuentas abiertas de dias anteriores
  *   4. despues          la cola del dia, numerada
  *   5. lo que aprieta   fechas tope y bandeja
@@ -20,7 +21,7 @@ import * as inbox from './inbox.js';
 import {
   pageHead, section, foldSection, taskList, pickTask, openEditor, openPostpone, captureBar,
   askOneThing, askCommit, askDelete, openDelegate, confirmSheet, deadlineTag, completeToggle,
-  countdownStrip,
+  countdownStrip, habitStrip,
 } from '../components.js';
 
 export function render() {
@@ -82,6 +83,10 @@ export function render() {
   /* -------------------------------- EL DÍA -------------------------------- */
 
   add(wrap, elDia({ lista, hechasHoy, profundos, venciendo, compromisos }));
+
+  /* -------------------------------- HÁBITOS ------------------------------- */
+
+  add(wrap, habitStrip());
 
   /* ----------------------------- CUENTA ATRÁS ---------------------------- */
 

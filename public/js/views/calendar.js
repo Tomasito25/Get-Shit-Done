@@ -15,6 +15,9 @@
  *   - Sacar una tarea de un día que ya pasó cuenta como aplazamiento.
  *   - La fecha tope no se arrastra: no se negocia.
  *   - El pasado no se planifica.
+ *
+ * Los hábitos van en cada día que toca: hoy y los días pasados se marcan desde
+ * aquí (un día olvidado se corrige), el futuro solo se ve.
  */
 
 import { add, h, iso, today, addDays, parseISO, monthName, fmtLong, fmtDate, weekStart, daysBetween, toast } from '../util.js';
@@ -23,7 +26,7 @@ import * as V from '../voice.js';
 import * as viewkeys from '../viewkeys.js';
 import {
   pageHead, section, openEditor, openPostpone, completeToggle, openDelegate,
-  openCountdownForm, countdownCard,
+  openCountdownForm, countdownCard, markHabit, openHabitForm,
 } from '../components.js';
 
 const DOW = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'];
@@ -77,6 +80,7 @@ export function render() {
     h('span', {}, h('i', { class: 'cal-chip-demo' }), 'lo que haces ese día'),
     h('span', {}, h('i', { class: 'cal-chip-demo commit' }), 'compromiso'),
     h('span', {}, h('i', { class: 'cal-chip-demo dl' }), 'fecha tope'),
+    h('span', {}, h('i', { class: 'cal-chip-demo hab' }), 'hábito'),
     h('span', { text: '◷ aviso' }),
     h('span', { text: '→ revisar lo que esperas' }),
     h('span', { text: '← → cambia de periodo' })));
@@ -194,6 +198,41 @@ function fichaCuenta(info) {
   return el;
 }
 
+const HAB_TEXTO = { done: 'hecho', missed: 'no se hizo', pending: 'hoy, sin hacer', future: 'toca ese día' };
+
+/** Un hábito en un día. Hoy y lo pasado se marcan; el futuro solo se ve. */
+function fichaHabito({ habit: hb, state }, fecha) {
+  const marcable = fecha <= today();
+  const el = h('div', {
+    class: `cal-chip cal-chip-habit h-${state}`,
+    title: `Hábito · ${hb.title}${hb.cue ? ` · ${hb.cue}` : ''} · ${HAB_TEXTO[state] || ''}`,
+  },
+    marcable
+      ? h('button', {
+        class: `cal-check${state === 'done' ? ' done' : ''}`, type: 'button',
+        title: state === 'done' ? 'Desmarcar' : 'Marcar como hecho',
+        onclick: (e) => { e.stopPropagation(); markHabit(hb.id, fecha); },
+      })
+      : h('b', { text: '○' }),
+    h('span', { class: 'cal-t', text: hb.title }),
+    state === 'missed'
+      ? h('span', { class: 'cal-when', text: 'NO' })
+      : (hb.time && state !== 'done' ? h('span', { class: 'cal-code', text: hb.time }) : null));
+  el.addEventListener('click', () => openHabitForm(S.habitById(hb.id)));
+  return el;
+}
+
+/** En el mes, un cuadrado por hábito: lleno si se hizo. Solo hasta hoy. */
+function puntosHabitos(fecha) {
+  if (fecha > today()) return null;
+  const items = S.habitsOn(fecha);
+  if (!items.length) return null;
+  return h('span', {
+    class: 'cal-hab',
+    title: items.map((x) => `${x.habit.title}: ${HAB_TEXTO[x.state] || ''}`).join('\n'),
+  }, items.map((x) => h('i', { class: x.state })));
+}
+
 function fichaEspera({ waiting, task }) {
   const el = h('div', { class: 'cal-chip cal-chip-review', title: `${waiting.person}: ${waiting.description}` },
     h('b', { text: `→ ${waiting.person || '—'}` }), h('span', { class: 'cal-t', text: waiting.description || task.title }));
@@ -285,10 +324,13 @@ function semana(dias, agendas) {
       !carga && !a.deadlines.length && !a.reviews.length && !pasado ? h('div', { class: 'cal-free', text: 'libre' }) : null,
       pasado && a.done.length && !estado.verHecho ? h('div', { class: 'cal-free', text: `${a.done.length} hecha${a.done.length === 1 ? '' : 's'}` }) : null);
 
+    const habitos = S.habitsOn(fecha);
     const col = h('section', {
       class: `cal-day${fecha === hoy ? ' today' : ''}${pasado ? ' past' : ''}${exceso ? ' over' : ''}`,
       dataset: { date: fecha },
-    }, cabeza, cuerpo, pasado ? null : campoDia(fecha, 'semana'));
+    }, cabeza, cuerpo,
+    habitos.length ? h('div', { class: 'cal-habits' }, habitos.map((x) => fichaHabito(x, fecha))) : null,
+    pasado ? null : campoDia(fecha, 'semana'));
     add(rejilla, zonaSoltar(col, fecha));
   }
   return rejilla;
@@ -328,6 +370,7 @@ function mes(agendas) {
     },
       h('div', { class: 'cal-cell-head' },
         h('span', { class: 'cal-num', text: String(n) }),
+        puntosHabitos(fecha),
         a.reminders.length ? h('span', { class: 'cal-rem', text: '◷', title: `${a.reminders.length} aviso(s)` }) : null,
         a.reviews.length ? h('span', { class: 'cal-rem', text: '→', title: 'Revisar lo que esperas' }) : null,
         a.done.length ? h('span', { class: 'cal-donecount', text: `✓${a.done.length}` }) : null),
@@ -354,6 +397,8 @@ function agenda(dias, agendas, vencidas) {
     const a = agendas.get(fecha);
     const hay = a.due.length || a.deadlines.length || a.reminders.length || a.reviews.length || (estado.verHecho && a.done.length);
     if (!hay && fecha !== hoy) continue;
+    // Los hábitos, solo en hoy: repetidos en cada día de la lista no dirían nada.
+    const habitos = fecha === hoy ? S.habitsOn(fecha) : [];
     const diff = daysBetween(hoy, fecha);
     const titulo = diff === 0 ? `HOY · ${fmtLong(fecha).toUpperCase()}` : diff === 1 ? `MAÑANA · ${fmtLong(fecha).toUpperCase()}` : fmtLong(fecha).toUpperCase();
     const exceso = a.due.length > S.commitCap();
@@ -362,13 +407,14 @@ function agenda(dias, agendas, vencidas) {
         h('div', { class: 'sec-title', text: titulo }),
         h('div', { class: 'sec-meta', text: exceso ? `${a.due.length} · DEMASIADO PARA UN DÍA` : (a.due.length ? `${a.due.length}` : '') })),
       h('div', { class: 'cal-agenda-list' },
+        habitos.map((x) => fichaHabito(x, fecha)),
         S.countdownsOnDate(fecha).map(fichaCuenta),
         a.deadlines.map((t) => ficha(t, 'deadline')),
         a.reminders.map((t) => ficha(t, 'reminder')),
         a.due.map((t) => ficha(t, 'due')),
         a.reviews.map(fichaEspera),
         estado.verHecho ? a.done.map((t) => ficha(t, 'done')) : null,
-        !hay ? h('div', { class: 'cal-free', text: 'Nada con fecha hoy. Elige qué hacer en HOY o en SIGUIENTES ACCIONES.' }) : null),
+        !hay && !habitos.length ? h('div', { class: 'cal-free', text: 'Nada con fecha hoy. Elige qué hacer en HOY o en SIGUIENTES ACCIONES.' }) : null),
       campoDia(fecha, 'agenda'));
     add(caja, zonaSoltar(bloque, fecha));
   }
@@ -400,6 +446,7 @@ function bandejas(vencidas) {
 
 function detalleDia(fecha) {
   const a = S.dayAgenda(fecha);
+  const habitos = S.habitsOn(fecha);
   const hoy = today();
   const pasado = fecha < hoy;
   const bloque = (titulo, hijos) => (hijos.length
@@ -411,12 +458,13 @@ function detalleDia(fecha) {
     body: h('div', {},
       pasado ? null : campoDia(fecha, 'detalle'),
       bloque('LO QUE HACES ESE DÍA', a.due.map((t) => ficha(t, 'due'))),
+      bloque(`HÁBITOS · ${habitos.filter((x) => x.state === 'done').length}/${habitos.length}`, habitos.map((x) => fichaHabito(x, fecha))),
       bloque('CUENTA ATRÁS', S.countdownsOnDate(fecha).map(fichaCuenta)),
       bloque('VENCE', a.deadlines.map((t) => ficha(t, 'deadline'))),
       bloque('AVISOS', a.reminders.map((t) => ficha(t, 'reminder'))),
       bloque('REVISAR LO QUE ESPERAS', a.reviews.map(fichaEspera)),
       bloque(`HECHO${a.deep ? ` · ${a.deep} MIN DE TRABAJO PROFUNDO` : ''}`, a.done.map((t) => ficha(t, 'done'))),
-      !a.due.length && !a.deadlines.length && !a.reminders.length && !a.reviews.length && !a.done.length
+      !a.due.length && !a.deadlines.length && !a.reminders.length && !a.reviews.length && !a.done.length && !habitos.length
         ? h('div', { class: 'empty', style: 'margin-top:10px', text: pasado ? 'Nada registrado ese día.' : 'Día libre. Arrastra aquí algo de SIN DÍA o escríbelo arriba.' })
         : null),
     micro: pasado && a.done.length ? `${a.done.length} CERRADAS. ${a.done.length >= 5 ? 'THAT WAS A DAY.' : 'EVERY DAY COUNTS.'}` : null,

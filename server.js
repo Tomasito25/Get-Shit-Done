@@ -372,6 +372,34 @@ async function checkReminders() {
     await notify(t.isOneThing ? 'GSD · Lo único' : 'GSD · Aviso', cuerpo, urgente);
   }
 
+  // Hábitos: a su hora, los días que tocan y solo si hoy aún no está hecho.
+  // Un aviso que no pudo sonar a su hora vale mientras siga siendo ese día.
+  const ajustes = (Array.isArray(datos.meta) ? datos.meta : []).find((m) => m && m.id === 'settings') || {};
+  const hoy = todayStamp();
+  const diaSemana = new Date().getDay();
+  for (const hb of Array.isArray(ajustes.habits) ? ajustes.habits : []) {
+    if (!hb || !hb.id || !/^\d{2}:\d{2}$/.test(hb.time || '')) continue;
+    if (!Array.isArray(hb.days) || !hb.days.includes(diaSemana)) continue;
+    if (hb.start && hb.start > hoy) continue;
+    if (Array.isArray(hb.done) && hb.done.includes(hoy)) continue;
+    if ((Array.isArray(hb.pauses) ? hb.pauses : []).some((p) => p && p.from <= hoy && (!p.to || p.to >= hoy))) continue;
+    const clave = `habito|${hb.id}|${hoy}T${hb.time}`;
+    if (enviados[clave]) continue;
+
+    const cuando = localDate(`${hoy}T${hb.time}`).getTime();
+    if (cuando > ahora) continue;
+
+    enviados[clave] = new Date().toISOString();
+    cambios = true;
+    const tarde = ahora - cuando > 5 * 60 * 1000;
+    const cuerpo = [
+      String(hb.title || ''),
+      hb.cue ? String(hb.cue) : '',
+      tarde ? `(tocaba a las ${hb.time})` : '',
+    ].filter(Boolean).join('\n');
+    await notify('GSD · Hábito', cuerpo, false);
+  }
+
   // Limpieza: lo enviado hace más de 30 días ya no hace falta recordarlo.
   const limite = ahora - 30 * 24 * 60 * 60 * 1000;
   for (const [clave, fecha] of Object.entries(enviados)) {

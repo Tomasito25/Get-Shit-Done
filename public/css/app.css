@@ -1538,6 +1538,115 @@ body.nav-collapsed .nav-grit{display:none}
 .board-count.cerca{border-color:var(--warn)}
 .board-count.cerca b{color:var(--warn)}
 
+/* --------------------------------- Hábitos -------------------------------- */
+
+/*
+ * Una casilla grande por hábito: se ve desde lejos si está hecho o no.
+ * Sin medallas ni fuegos: la racha es un número, y un fallo se ve en rojo.
+ */
+.habitos{margin:0 0 30px}
+.habitos-n{
+  font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink);
+  font-variant-numeric:tabular-nums;letter-spacing:.06em;
+}
+.habitos-n.ok{color:var(--muted)}
+.habitos-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.habito{
+  display:flex;align-items:flex-start;gap:12px;min-width:0;text-align:left;
+  border:1px solid var(--line);border-left:3px solid var(--ink);
+  background:var(--panel);padding:13px 14px 12px;
+}
+.habito:hover{border-color:var(--ink)}
+.habito-check{
+  width:22px;height:22px;flex:0 0 auto;border:2px solid var(--ink);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:13px;font-weight:700;line-height:1;color:var(--bg);
+}
+.habito:hover .habito-check{background:var(--sel)}
+.habito.hecho{border-left-color:var(--line)}
+.habito.hecho .habito-check,.habito.hecho:hover .habito-check{background:var(--ink);color:var(--bg)}
+.habito.hecho .habito-t{color:var(--muted)}
+.habito.tarde{border-left-color:var(--warn)}
+.habito.tarde .habito-check{border-color:var(--warn)}
+.habito-body{display:flex;flex-direction:column;gap:3px;min-width:0}
+.habito-t{font-size:15px;line-height:1.25;font-weight:600;color:var(--ink);word-break:break-word}
+.habito-cue{font-size:12.5px;line-height:1.35;color:var(--muted)}
+.habito-meta{
+  display:flex;gap:4px 10px;flex-wrap:wrap;margin-top:4px;
+  font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--faint);text-transform:uppercase;
+}
+.habito-ok{color:var(--ink-2);font-weight:700}
+.habito-late,.cuentas-grit.habito-late{color:var(--warn)}
+
+/* El formulario: siete días, cada uno con lo que ya lleva sobre tres. */
+.hab-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.hab-day{
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  border:1px solid var(--line);padding:7px 0 6px;background:none;color:var(--ink);
+}
+.hab-day b{font-family:var(--mono);font-size:12px;font-weight:700}
+.hab-day small{font-family:var(--mono);font-size:9px;color:var(--faint)}
+.hab-day:hover:not(:disabled){border-color:var(--ink)}
+.hab-day.on,.hab-day.on:hover{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.hab-day.on small{color:var(--bg);opacity:.7}
+.hab-day.full{opacity:.35;cursor:not-allowed}
+
+/* La pantalla de hábitos. */
+.hab-tools{display:flex;gap:14px 24px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.hab-load{display:flex;gap:8px;align-items:flex-end}
+.hab-load-d{display:flex;flex-direction:column;align-items:center;gap:4px}
+.hab-load-d b{font-family:var(--mono);font-size:9.5px;color:var(--muted);font-weight:700}
+.hab-load-d.full b{color:var(--ink)}
+.hab-load-bar{display:flex;gap:2px}
+.hab-load-bar i{display:block;width:7px;height:7px;border:1px solid var(--line)}
+.hab-load-bar i.on{background:var(--ink);border-color:var(--ink)}
+.hab-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.hab-card{border:1px solid var(--line);border-left:3px solid var(--ink);background:var(--panel);padding:15px 17px 16px;min-width:0}
+.hab-card.paused{border-left-color:var(--line);opacity:.7}
+.hab-card-head{display:flex;gap:12px;align-items:flex-start}
+.hab-card-main{flex:1;min-width:0}
+.hab-card-t{font-size:17px;line-height:1.25;font-weight:700;color:var(--ink);text-align:left;word-break:break-word;letter-spacing:-.01em}
+.hab-card-t:hover{text-decoration:underline;text-underline-offset:3px}
+.hab-card-cue{font-size:13px;color:var(--muted);margin-top:3px}
+.hab-card-meta{
+  display:flex;gap:4px 12px;flex-wrap:wrap;margin-top:7px;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;
+}
+.hab-paused{color:var(--warn);font-weight:700}
+.hab-nums{display:flex;gap:28px;flex-wrap:wrap;margin:16px 0 14px}
+.hab-num-n{font-family:var(--mono);font-size:30px;line-height:1;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.03em}
+.hab-num-l{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:5px}
+.hab-num.bad .hab-num-n{color:var(--warn)}
+
+/* Ocho semanas, de lunes a domingo: lleno es hecho, borde rojo es fallado. */
+.hab-grid{display:grid;grid-template-columns:44px repeat(7,16px);gap:3px;align-items:center}
+.hab-grid-dow{font-family:var(--mono);font-size:8.5px;color:var(--faint);text-align:center}
+.hab-grid-l{font-family:var(--mono);font-size:8.5px;color:var(--faint);white-space:nowrap}
+.hab-cell{display:block;width:16px;height:16px;padding:0;border:1px solid var(--line);background:none}
+.hab-cell.done{background:var(--ink);border-color:var(--ink)}
+.hab-cell.missed{border:2px solid var(--warn)}
+.hab-cell.pending{border:1px dashed var(--ink-2)}
+.hab-cell.off{background:var(--line-2);border-color:var(--line-2)}
+.hab-cell.future{border:1px dotted var(--line)}
+.hab-cell.today{outline:1px solid var(--ink);outline-offset:1px}
+button.hab-cell:hover{border-color:var(--ink)}
+button.hab-cell.done:hover{opacity:.8}
+
+/* En el calendario. */
+.cal-habits{display:flex;flex-direction:column;gap:3px;margin-top:8px;padding-top:6px;border-top:1px dashed var(--line)}
+.cal-chip-habit{border-left:3px double var(--ink-2);background:none}
+.cal-chip-habit b{color:var(--muted)}
+.cal-chip-habit.h-done .cal-t{color:var(--muted)}
+.cal-chip-habit.h-missed{border-left-color:var(--warn);color:var(--muted)}
+.cal-chip-habit.h-future{opacity:.6}
+/* En la semana las columnas son estrechas: el nombre importa más que la hora. */
+.cal-habits .cal-chip-habit .cal-code{display:none}
+.cal-hab{display:inline-flex;gap:2px;align-items:center}
+.cal-hab i{display:block;width:6px;height:6px;border:1px solid var(--muted)}
+.cal-hab i.done{background:var(--ink);border-color:var(--ink)}
+.cal-hab i.missed{border-color:var(--warn)}
+.cal-legend i.hab{border-left:3px double var(--ink-2)}
+
 /* ------------------------------- Responsive ------------------------------ */
 
 @media (max-width:760px){
@@ -1563,6 +1672,9 @@ body.nav-collapsed .nav-grit{display:none}
   .cardcfg{grid-template-columns:1fr}
   .cuentas-row{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
   .cuenta-n{font-size:28px}
+  .habitos-row{grid-template-columns:1fr}
+  .hab-list{grid-template-columns:1fr}
+  .hab-tools{gap:14px}
   .cardcfg-fields{grid-template-columns:1fr}
   .cardcfg-preview{position:static}
   .cal-week{grid-template-columns:1fr}
